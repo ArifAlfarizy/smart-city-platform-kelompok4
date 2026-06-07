@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environment
+venv/
+env/
+.venv/
+
+# Environment variables — JANGAN DI-COMMIT
+.env
+
+# ML Models — file .pkl besar, generate lokal
+models/*.pkl
+models/*.joblib
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+notebooks/.ipynb_checkpoints/
+
+# Data (opsional — uncomment jika dataset terlalu besar)
+# data/*.csv
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Raw datasets dari Kaggle (ukuran besar, download ulang via kaggle CLI)
+data/raw/
