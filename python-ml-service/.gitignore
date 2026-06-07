@@ -37,3 +37,6 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+
+# Raw datasets dari Kaggle (ukuran besar, download ulang via kaggle CLI)
+data/raw/
