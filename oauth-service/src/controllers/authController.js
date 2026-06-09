@@ -1,4 +1,7 @@
 import { createUser, findUserByEmail } from "../models/userModel.js";
+import "dotenv/config";
+import bcrypt from "bcrypt";
+const saltRounds = Number(process.env.SALT_ROUNDS);
 
 // register
 export const register = async (req, res) => {
@@ -7,7 +10,6 @@ export const register = async (req, res) => {
       req.body;
 
     // Add validations
-
     if (!name || !email || !password) {
       return res.status(400).json({
         success: false,
@@ -15,6 +17,7 @@ export const register = async (req, res) => {
       });
     }
 
+    // Check existing user
     const checkExistingUser = await findUserByEmail(email);
 
     if (checkExistingUser) {
@@ -25,10 +28,12 @@ export const register = async (req, res) => {
       });
     }
 
+    const hashedPassword = bcrypt.hashSync(password, saltRounds);
+
     const newUser = await createUser({
       name,
       email,
-      password_hash: password,
+      password_hash: hashedPassword,
       photo,
       oauth_provider,
       oauth_id,
