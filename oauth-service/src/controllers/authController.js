@@ -1,6 +1,10 @@
 import { createUser, findUserByEmail } from "../models/userModel.js";
 import "dotenv/config";
 import bcrypt from "bcrypt";
+import {
+  generateAccessToken,
+  generateRefreshToken,
+} from "../utils/tokenHelper.js";
 const saltRounds = Number(process.env.SALT_ROUNDS);
 
 // register
@@ -39,11 +43,21 @@ export const register = async (req, res) => {
       oauth_id,
     });
 
+    const accessToken = generateAccessToken(newUser);
+    const refreshToken = generateRefreshToken(newUser);
+
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      sameSite: "lax",
+    });
+
     return res.status(201).json({
       success: true,
       message: "Berhasil register",
       data: newUser,
+      accessToken,
     });
+
   } catch (error) {
     console.error("Register Error:", error);
     return res.status(500).json({
