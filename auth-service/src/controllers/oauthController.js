@@ -1,10 +1,8 @@
 import { createUser, findUserByEmail } from "../models/userModel.js";
 import "dotenv/config";
 import bcrypt from "bcrypt";
-import {
-  generateAccessToken,
-  generateRefreshToken,
-} from "../utils/tokenHelper.js";
+import crypto from "crypto";
+import { generateAccessToken } from "../utils/tokenHelper.js";
 import { insertToken } from "../models/tokenModel.js";
 const saltRounds = Number(process.env.SALT_ROUNDS);
 
@@ -21,6 +19,15 @@ export const token = async (req, res) => {
   }
 
   return handler(req, res);
+};
+
+// using crypto to generate and hash refreshtokens
+export const generateRefreshToken = () => {
+  return crypto.randomBytes(64).toString("hex");
+};
+
+export const hashToken = (token) => {
+  return crypto.createHash("sha256").update(token).digest("hex");
 };
 
 // Password grant
@@ -59,11 +66,10 @@ const passwordGrant = async (req, res) => {
     }
 
     const accessToken = generateAccessToken(checkExistingUser);
-    const refreshToken = generateRefreshToken(checkExistingUser);
+    const refreshToken = generateRefreshToken();
+    const hashedRefreshToken = hashToken(refreshToken);
 
     const expiredAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-
-    const hashedRefreshToken = bcrypt.hashSync(refreshToken, saltRounds);
 
     // save refresh token to database
     await insertToken({
@@ -89,9 +95,14 @@ const passwordGrant = async (req, res) => {
 };
 
 // Refresh token grant
+const refreshTokenGrant = async (req, res) => {
+  try {
+  } catch (error) {}
+};
 
 // Client credentials grant
 
 const grantHandlers = {
   password: passwordGrant,
+  refresh_token: refreshTokenGrant,
 };
