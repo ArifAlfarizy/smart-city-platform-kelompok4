@@ -8,7 +8,23 @@ import {
 import { insertToken } from "../models/tokenModel.js";
 const saltRounds = Number(process.env.SALT_ROUNDS);
 
-export const passwordGrant = async (req, res) => {
+export const token = async (req, res) => {
+  const { grant_type } = req.body;
+
+  const handler = grantHandlers[grant_type];
+
+  if (!handler) {
+    return res.status(400).json({
+      success: false,
+      message: "Unsupported grant type",
+    });
+  }
+
+  return handler(req, res);
+};
+
+// Password grant
+const passwordGrant = async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -70,4 +86,12 @@ export const passwordGrant = async (req, res) => {
       message: "Internal Server Error",
     });
   }
+};
+
+// Refresh token grant
+
+// Client credentials grant
+
+const grantHandlers = {
+  password: passwordGrant,
 };

@@ -1,8 +1,8 @@
 import express from "express";
-import { passwordGrant } from "../controllers/oauthController.js";
+import { token } from "../controllers/oauthController.js";
 
 const oauthRouter = express.Router();
 
-oauthRouter.post("/token", passwordGrant);
+oauthRouter.post("/token", token);
 
 export default oauthRouter;
