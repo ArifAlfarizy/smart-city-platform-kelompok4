@@ -22,16 +22,23 @@ function loadEnv($dir) {
     }
 }
 
-// 2. JALANKAN loadEnv SEKARANG agar $_ENV terisi data dari file .env
+// 2. Jalankan loadEnv agar $_ENV terisi data dari file .env
 loadEnv(dirname(__DIR__));
 
-// 3. BARU MUAT file Database.php setelah $_ENV dipastikan sudah siap dan berisi data
+// 3. Muat file Core & Database core
 require_once dirname(__DIR__) . '/app/Database.php';
 
+// 4. Muat berkas-berkas Model (Autoload manual sesuai arsitektur folder PRD) [cite: 128]
+require_once dirname(__DIR__) . '/app/Models/TrafficData.php';
+// Kita siapkan load file Incident.php di bawah ini untuk langkah selanjutnya
+if (file_exists(dirname(__DIR__) . '/app/Models/Incident.php')) {
+    require_once dirname(__DIR__) . '/app/Models/Incident.php';
+}
 
 $requestUri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $requestMethod = $_SERVER['REQUEST_METHOD'];
 
+// Standard Response JSON sesuai aturan PRD [cite: 355]
 function jsonResponse($status, $code, $message, $data = null) {
     http_response_code($code);
     echo json_encode([
@@ -45,7 +52,7 @@ function jsonResponse($status, $code, $message, $data = null) {
     exit();
 }
 
-// 4. Logika Routing
+// 5. Logika Routing
 if ($requestUri === '/api/traffic/health' && $requestMethod === 'GET') {
     $db = Database::getInstance()->getConnection();
     jsonResponse("success", 200, "Traffic Service is healthy and Database is connected successfully!");
