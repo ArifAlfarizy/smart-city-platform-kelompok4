@@ -17,3 +17,4 @@ export const insertToken = async ({
     [result.insertId],
   );
 };
+
