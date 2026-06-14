@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "author": "Smart City Role 4",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "wokwi-esp32-devkit-v1",
+      "id": "esp",
+      "top": -14.5,
+      "left": 139,
+      "attrs": { "env": "arduino" }
+    },
+    {
+      "type": "wokwi-dht22",
+      "id": "dht1",
+      "top": -76.5,
+      "left": -34.2,
+      "attrs": { "temperature": "31.5", "humidity": "72" }
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "pot_aqi",
+      "top": -97.3,
+      "left": 364.6,
+      "attrs": { "label": "AQI Simulator (0-300)", "value": "0.33" }
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "pot_flood",
+      "top": -97.3,
+      "left": 249.4,
+      "attrs": { "label": "Flood Level 0-100cm", "value": "0.55" }
+    }
+  ],
+  "connections": [
+    [ "esp:3V3", "dht1:VCC", "red", [] ],
+    [ "esp:GND.1", "dht1:GND", "black", [] ],
+    [ "esp:D15", "dht1:SDA", "green", [] ],
+    [ "esp:3V3", "pot_aqi:VCC", "red", [] ],
+    [ "esp:GND.2", "pot_aqi:GND", "black", [] ],
+    [ "esp:D34", "pot_aqi:SIG", "orange", [] ],
+    [ "esp:3V3", "pot_flood:VCC", "red", [] ],
+    [ "esp:GND.2", "pot_flood:GND", "black", [] ],
+    [ "esp:D35", "pot_flood:SIG", "blue", [] ]
+  ],
+  "dependencies": {}
+}
