@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS ml_predictions (
     created_at       TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_model_type (model_type),
     INDEX idx_created_at (created_at)
+);
 -- MySQL Database Schema
 CREATE DATABASE IF NOT EXISTS smartcity;
 USE smartcity;
