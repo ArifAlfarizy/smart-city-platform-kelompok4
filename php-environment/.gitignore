@@ -1,0 +1,18 @@
+# Dependencies
+/vendor/
+
+# Environment
+.env
+docker.env
+
+# Logs
+*.log
+/logs/
+
+# IDE
+.idea/
+.vscode/
+.DS_Store
+
+# Docker artifacts
+*.pkl
