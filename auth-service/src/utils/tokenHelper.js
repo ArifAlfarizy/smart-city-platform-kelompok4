@@ -10,3 +10,17 @@ export const generateAccessToken = (user) => {
     { expiresIn: process.env.JWT_ACCESS_EXPIRES_IN },
   );
 };
+
+export const generateClientToken = (client) => {
+  const jti = crypto.randomUUID();
+
+  return jwt.sign(
+    {
+      jti,
+      client_id: client.client_id,
+      role: "service",
+    },
+    process.env.JWT_ACCESS_SECRET,
+    { expiresIn: process.env.JWT_ACCESS_EXPIRES_IN },
+  );
+};
