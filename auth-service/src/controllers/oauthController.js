@@ -1,10 +1,10 @@
-import { createUser, findUserByEmail } from "../models/userModel.js";
+import { findUserByEmail } from "../models/userModel.js";
 import "dotenv/config";
 import bcrypt from "bcrypt";
 import crypto from "crypto";
 import { generateAccessToken } from "../utils/tokenHelper.js";
 import { insertToken } from "../models/tokenModel.js";
-const saltRounds = Number(process.env.SALT_ROUNDS);
+import { ref } from "process";
 
 export const token = async (req, res) => {
   const { grant_type } = req.body;
@@ -46,7 +46,7 @@ const passwordGrant = async (req, res) => {
     const checkExistingUser = await findUserByEmail(email);
 
     if (!checkExistingUser) {
-      return res.status(400).json({
+      return res.status(404).json({
         // change code to duplicate
         success: false,
         message: "user not found. Try register!",
@@ -80,10 +80,10 @@ const passwordGrant = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      accessToken,
-      refreshToken,
+      access_token: accessToken,
+      refresh_token: refreshToken,
       token_type: "Bearer",
-      expiredAt,
+      expires_in: Number(process.env.JWT_ACCESS_EXPIRES_IN),
     });
   } catch (error) {
     console.error("Granting password error:", error);
