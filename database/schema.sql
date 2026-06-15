@@ -59,18 +59,11 @@ CREATE TABLE revoked_tokens (
   revoked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- ==========================================================
--- Smart City Integrated Platform
--- Role 4: Environment Service — Database Schema
--- ==========================================================
-
 CREATE DATABASE IF NOT EXISTS smartcity CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE smartcity;
 
--- ----------------------------------------------------------
 -- SHARED: Zones table (dibuat Role 1, ditaruh di sini juga
 --         agar schema.sql bisa dirun standalone)
--- ----------------------------------------------------------
 CREATE TABLE IF NOT EXISTS zones (
     id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     name       VARCHAR(50)     NOT NULL,
@@ -86,9 +79,7 @@ INSERT IGNORE INTO zones (id, name, district, area_km2) VALUES
     (4, 'D', 'Jakarta Barat',   129.54),
     (5, 'E', 'Jakarta Timur',   187.73);
 
--- ----------------------------------------------------------
 -- ENV: environment_data  (renamed from env_ prefix per PRD)
--- ----------------------------------------------------------
 CREATE TABLE IF NOT EXISTS environment_data (
     id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     sensor_id     VARCHAR(50)     NOT NULL,
@@ -111,9 +102,7 @@ CREATE TABLE IF NOT EXISTS environment_data (
     INDEX idx_sensor_id       (sensor_id)
 ) ENGINE=InnoDB COMMENT='Pembacaan sensor lingkungan per zona';
 
--- ----------------------------------------------------------
 -- ENV: environment_alerts
--- ----------------------------------------------------------
 CREATE TABLE IF NOT EXISTS environment_alerts (
     id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     zone        ENUM('A','B','C','D','E') NOT NULL,
@@ -132,9 +121,7 @@ CREATE TABLE IF NOT EXISTS environment_alerts (
     INDEX idx_zone_status   (zone, status)
 ) ENGINE=InnoDB COMMENT='Alert otomatis berdasarkan pembacaan sensor';
 
--- ----------------------------------------------------------
 -- Seed: dummy data
--- ----------------------------------------------------------
 INSERT INTO environment_data 
     (sensor_id, zone, aqi, temperature, humidity, flood_level, pm25, pm10, no2, co, o3)
 VALUES
