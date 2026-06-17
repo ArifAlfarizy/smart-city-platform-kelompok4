@@ -9,5 +9,12 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "express-http-proxy": "^2.1.2",
+    "http-proxy-middleware": "^2.0.9",
+    "jsonwebtoken": "^9.0.3"
+  }
 }

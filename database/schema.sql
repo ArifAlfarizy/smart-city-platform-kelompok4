@@ -59,8 +59,30 @@ CREATE TABLE revoked_tokens (
   revoked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE DATABASE IF NOT EXISTS smartcity CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE smartcity;
+-- Tabel traffic_data
+CREATE TABLE IF NOT EXISTS traffic_data (
+  id               INT AUTO_INCREMENT PRIMARY KEY,
+  sensor_id        VARCHAR(50) NOT NULL,
+  zone             ENUM('A', 'B', 'C') NOT NULL,
+  vehicle_count    INT NOT NULL,
+  avg_speed        DECIMAL(5,2) NOT NULL,
+  congestion_level INT NOT NULL,
+  recorded_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_traffic_zone (zone),
+  INDEX idx_traffic_recorded_at (recorded_at)
+);
+
+-- Tabel incidents
+CREATE TABLE IF NOT EXISTS incidents (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  zone          ENUM('A', 'B', 'C') NOT NULL,
+  incident_type VARCHAR(100) NOT NULL,
+  description   TEXT NOT NULL,
+  status        ENUM('active', 'resolved') NOT NULL DEFAULT 'active',
+  created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_incidents_zone (zone),
+  INDEX idx_incidents_status (status)
+);
 
 -- SHARED: Zones table (dibuat Role 1, ditaruh di sini juga
 --         agar schema.sql bisa dirun standalone)

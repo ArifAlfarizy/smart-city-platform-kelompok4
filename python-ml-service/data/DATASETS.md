@@ -22,7 +22,7 @@
 - **Dipakai untuk:** Anomaly Detector (Isolation Forest)
 - **File yang dipakai:** `realKnownCause/machine_temperature_system_failure.csv`
 
-## Catatan
+## Catatan 
 
 File raw dataset ada di `data/raw/` dan di-gitignore (ukuran terlalu besar).
 Setelah clone repo, jalankan perintah download di atas untuk mendapatkan dataset.

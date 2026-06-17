@@ -7,14 +7,20 @@ export const generateAccessToken = (user) => {
   return jwt.sign(
     { id: user.id, email: user.email, role: user.role },
     process.env.JWT_ACCESS_SECRET,
-    { expiresIn: "15m" },
+    { expiresIn: process.env.JWT_ACCESS_EXPIRES_IN },
   );
 };
 
-export const generateRefreshToken = (user) => {
+export const generateClientToken = (client) => {
+  const jti = crypto.randomUUID();
+
   return jwt.sign(
-    { id: user.id, email: user.email, role: user.role },
+    {
+      jti,
+      client_id: client.client_id,
+      role: "service",
+    },
     process.env.JWT_ACCESS_SECRET,
-    { expiresIn: "7d" },
+    { expiresIn: process.env.JWT_ACCESS_EXPIRES_IN },
   );
 };
