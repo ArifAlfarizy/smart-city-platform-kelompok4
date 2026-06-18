@@ -24,19 +24,19 @@ export const verifyToken = (req, res, next) => {
 
     next();
   } catch (error) {
-    if (err.name === "TokenExpiredError") {
+    if (error.name === "TokenExpiredError") {
       return res.status(401).json({
         error: "Token expired. Please login again.",
       });
     }
 
-    if (err.name === "JsonWebTokenError") {
+    if (error.name === "JsonWebTokenError") {
       return res.status(403).json({
         error: "Invalid token.",
       });
     }
 
-    if (err.name === "NotBeforeError") {
+    if (error.name === "NotBeforeError") {
       return res.status(401).json({
         error: "JWT not active.",
       });

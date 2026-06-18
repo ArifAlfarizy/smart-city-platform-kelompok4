@@ -2,13 +2,10 @@ import express from "express";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import verifyToken from "./middleware/verifyToken.js";
 import { limiter } from "./middleware/rateLimit.js";
+import { requestLogger } from "./middleware/logger.js";
 
 const app = express();
-
-app.use((req, res, next) => {
-  console.log(req.method, req.url);
-  next();
-});
+app.use(requestLogger);
 
 app.use(
   "/oauth/revoke",
