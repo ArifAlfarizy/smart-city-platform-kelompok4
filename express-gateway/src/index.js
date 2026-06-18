@@ -1,27 +1,24 @@
 import express from "express";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import verifyToken from "./middleware/verifyToken.js";
+import { limiter } from "./middleware/rateLimit.js";
+import { requestLogger } from "./middleware/logger.js";
 
 const app = express();
+app.use(requestLogger);
 
-app.use((req, res, next) => {
-  console.log(req.method, req.url);
-  next();
-});
-
-
-// auth service
 app.use(
-  ["/auth", "/oauth"],
+  "/oauth/revoke",
+  limiter,
   createProxyMiddleware({
     target: "http://localhost:3002",
     changeOrigin: true,
   }),
 );
 
+// auth service
 app.use(
-  "/oauth/revoke",
-  verifyToken,
+  ["/auth", "/oauth"],
   createProxyMiddleware({
     target: "http://localhost:3002",
     changeOrigin: true,
