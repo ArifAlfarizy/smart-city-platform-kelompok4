@@ -15,7 +15,6 @@ class TrafficController {
      * Menerima kiriman data dari IoT Gateway (Node-RED)
      */
     public function handleSensorInput() {
-        // Ambil input JSON dari request body
         $inputData = json_decode(file_get_contents("php://input"), true);
 
         // Validasi input dasar
@@ -32,18 +31,33 @@ class TrafficController {
         $avg_speed = floatval($inputData['avg_speed']);
         $congestion_level = intval($inputData['congestion_level']);
 
-        // Validasi enum zona sesuai aturan DB ENUM('A', 'B', 'C')
         if (!in_array($zone, ['A', 'B', 'C'])) {
             $this->sendResponse("error", 400, "Invalid zone. Allowed zones are A, B, or C");
         }
 
-        // Simpan ke database via Model
+        // 1. Amankan data masuk ke database MySQL lokal terlebih dahulu
         $insertedId = $this->trafficModel->create($sensor_id, $zone, $vehicle_count, $avg_speed, $congestion_level);
 
         if ($insertedId) {
-            // [TODO SPRINT BERIKUTNYA]: Publish event 'traffic.sensor.received' ke RabbitMQ disini
             
-            $this->sendResponse("success", 201, "Sensor data recorded successfully", [
+            // 2. INTEGRASI ASINKRON RABBITMQ (ROLE 3)
+            require_once dirname(__DIR__) . '/Services/RabbitMQPublisher.php';
+            $publisher = new RabbitMQPublisher();
+
+            // Sesuai dengan format skema Pydantic 'TrafficIn' milik ML Service kelompokmu:
+            // payload membutuhkan properti: zone, vehicle_count, avg_speed, incident
+            $rabbitPayload = [
+                "zone" => $zone,
+                "vehicle_count" => (float)$vehicle_count,
+                "avg_speed" => $avg_speed,
+                "incident" => 0 // Default 0 karena dikirim otomatis berkala oleh sensor bukan laporan operator
+            ];
+
+            // Kirim pesan ke exchange dengan routing key 'traffic.sensor.received'
+            $publisher->publishEvent('traffic.sensor.received', $rabbitPayload);
+            
+            // 3. Kembalikan respons sukses ke Node-RED / Client
+            $this->sendResponse("success", 201, "Sensor data recorded and event published successfully", [
                 "id" => $insertedId,
                 "zone" => $zone
             ]);
