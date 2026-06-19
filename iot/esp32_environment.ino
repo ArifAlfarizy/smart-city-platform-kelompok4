@@ -36,14 +36,13 @@ PubSubClient mqtt(wifiClient);
 char         topicBuf[64];
 unsigned long lastPublish   = 0;
 unsigned long lastVehiclePublish = 0;
-volatile int  vehicleCount  = 0;   // counter kendaraan lewat
-unsigned long lastIRTime    = 0;   // debounce IR
+volatile int  vehicleCount  = 0;
+unsigned long lastIRTime    = 0;
 
 void setup() {
     Serial.begin(115200);
     dht.begin();
 
-    // IR Receiver init
     IrReceiver.begin(IR_RECV_PIN, DISABLE_LED_FEEDBACK);
     Serial.println("[IR] Receiver aktif di pin " + String(IR_RECV_PIN));
 
@@ -83,13 +82,11 @@ void loop() {
 
     unsigned long now = millis();
 
-    // ── Publish sensor lingkungan tiap 30 detik ──────────────
     if (now - lastPublish >= PUBLISH_INTERVAL_MS) {
         lastPublish = now;
         publishSensorData();
     }
 
-    // ── Publish kendaraan tiap 1 menit ───────────────────────
     if (now - lastVehiclePublish >= VEHICLE_PUBLISH_INTERVAL_MS) {
         lastVehiclePublish = now;
         publishVehicleData();
@@ -102,9 +99,8 @@ void publishVehicleData() {
     doc["zone"]           = ZONE;
     doc["timestamp"]      = millis();
     doc["vehicle_count"]  = vehicleCount;
-    doc["interval_sec"]   = VEHICLE_PUBLISH_INTERVAL_MS / 1000;  // 60
+    doc["interval_sec"]   = VEHICLE_PUBLISH_INTERVAL_MS / 1000;
 
-    // Estimasi kepadatan lalu lintas
     const char* trafficStatus;
     if      (vehicleCount < 5)   trafficStatus = "Lancar";
     else if (vehicleCount < 15)  trafficStatus = "Sedang";
@@ -112,8 +108,7 @@ void publishVehicleData() {
     else                         trafficStatus = "Macet";
 
     doc["traffic_status"] = trafficStatus;
-
-    vehicleCount = 0;  // reset counter setelah publish
+    vehicleCount = 0;
 
     char payload[128];
     serializeJson(doc, payload);
@@ -122,14 +117,10 @@ void publishVehicleData() {
     snprintf(vehicleTopic, sizeof(vehicleTopic), "city/%s/vehicle", ZONE);
 
     bool ok = mqtt.publish(vehicleTopic, payload, true);
-    Serial.printf("[MQTT] %s → %s\n%s\n",
-                  ok ? "OK" : "FAIL",
-                  vehicleTopic,
-                  payload);
+    Serial.printf("[MQTT] %s → %s\n%s\n", ok ? "OK" : "FAIL", vehicleTopic, payload);
 }
 
 void publishSensorData() {
-    // ── DHT22 ────────────────────────────────────────────────
     float temperature = dht.readTemperature();
     float humidity    = dht.readHumidity();
 
@@ -138,7 +129,6 @@ void publishSensorData() {
         return;
     }
 
-    // ── Analog Sensors ───────────────────────────────────────
     int rawAqi           = analogRead(AQI_PIN);
     int rawFlood         = analogRead(FLOOD_PIN);
     int rawRain          = analogRead(RAIN_PIN);
@@ -146,20 +136,18 @@ void publishSensorData() {
 
     float aqi           = mapFloat(rawAqi,           0, 4095, 0.0,   300.0);
     float floodLevel    = mapFloat(rawFlood,          0, 4095, 0.0,   100.0);
-    float rainLevel     = mapFloat(rawRain,           0, 4095, 0.0,   100.0);  // 0-100%
-    float rainIntensity = mapFloat(rawRainIntensity,  0, 4095, 0.0,   100.0);  // 0-100 mm/h
+    float rainLevel     = mapFloat(rawRain,           0, 4095, 0.0,   100.0);
+    float rainIntensity = mapFloat(rawRainIntensity,  0, 4095, 0.0,   100.0);
 
     float pm25 = aqi * 0.25f;
     float pm10 = aqi * 0.40f;
 
-    // ── Klasifikasi hujan ────────────────────────────────────
     const char* rainStatus;
     if      (rainIntensity < 5.0)   rainStatus = "Tidak Hujan";
     else if (rainIntensity < 20.0)  rainStatus = "Hujan Ringan";
     else if (rainIntensity < 50.0)  rainStatus = "Hujan Sedang";
     else                            rainStatus = "Hujan Lebat";
 
-    // ── Klasifikasi AQI ──────────────────────────────────────
     const char* aqiStatus;
     if      (aqi < 50)   aqiStatus = "Baik";
     else if (aqi < 100)  aqiStatus = "Sedang";
@@ -168,39 +156,27 @@ void publishSensorData() {
     else if (aqi < 300)  aqiStatus = "Sangat Tidak Sehat";
     else                 aqiStatus = "Berbahaya";
 
-    // ── Klasifikasi Banjir ───────────────────────────────────
     const char* floodStatus;
     if      (floodLevel < 20)  floodStatus = "Aman";
     else if (floodLevel < 50)  floodStatus = "Waspada";
     else if (floodLevel < 80)  floodStatus = "Siaga";
     else                       floodStatus = "Bahaya";
 
-    // ── Build JSON ───────────────────────────────────────────
     StaticJsonDocument<512> doc;
     doc["sensor_id"]       = SENSOR_ID;
     doc["zone"]            = ZONE;
     doc["timestamp"]       = millis();
-
-    // Udara
     doc["aqi"]             = roundf(aqi * 10) / 10.0f;
     doc["aqi_status"]      = aqiStatus;
     doc["pm25"]            = roundf(pm25 * 10) / 10.0f;
     doc["pm10"]            = roundf(pm10 * 10) / 10.0f;
-
-    // Cuaca
     doc["temperature"]     = roundf(temperature * 10) / 10.0f;
     doc["humidity"]        = roundf(humidity * 10) / 10.0f;
-
-    // Hujan
     doc["rain_level"]      = roundf(rainLevel * 10) / 10.0f;
     doc["rain_intensity"]  = roundf(rainIntensity * 10) / 10.0f;
     doc["rain_status"]     = rainStatus;
-
-    // Banjir
     doc["flood_level"]     = roundf(floodLevel * 10) / 10.0f;
     doc["flood_status"]    = floodStatus;
-
-    // Kendaraan — reset counter setelah publish
     doc["vehicle_count"]   = vehicleCount;
     vehicleCount = 0;
 
@@ -208,13 +184,9 @@ void publishSensorData() {
     serializeJson(doc, payload);
 
     bool ok = mqtt.publish(topicBuf, payload, true);
-    Serial.printf("[MQTT] %s → %s\n%s\n",
-                  ok ? "OK" : "FAIL",
-                  topicBuf,
-                  payload);
+    Serial.printf("[MQTT] %s → %s\n%s\n", ok ? "OK" : "FAIL", topicBuf, payload);
 }
 
-// ── Helper ───────────────────────────────────────────────────
 float mapFloat(int x, int inMin, int inMax, float outMin, float outMax) {
     return (float)(x - inMin) * (outMax - outMin) / (float)(inMax - inMin) + outMin;
 }
