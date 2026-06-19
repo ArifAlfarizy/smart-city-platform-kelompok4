@@ -8,6 +8,14 @@ class SensorValidator
 
     private const VALID_ZONES = ['A', 'B', 'C', 'D', 'E'];
 
+    // Status string yang valid dari firmware ESP32
+    private const VALID_AQI_STATUS = [
+        'Baik', 'Sedang', 'Tidak Sehat (Sensitif)',
+        'Tidak Sehat', 'Sangat Tidak Sehat', 'Berbahaya',
+    ];
+    private const VALID_RAIN_STATUS  = ['Tidak Hujan', 'Hujan Ringan', 'Hujan Sedang', 'Hujan Lebat'];
+    private const VALID_FLOOD_STATUS = ['Aman', 'Waspada', 'Siaga', 'Bahaya'];
+
     public function validate(array $data): array
     {
         $this->errors = [];
@@ -40,6 +48,14 @@ class SensorValidator
             $this->errors[] = 'Field flood_level harus berupa angka >= 0.';
         }
 
+        if (isset($data['rain_level']) && (!is_numeric($data['rain_level']) || (float)$data['rain_level'] < 0 || (float)$data['rain_level'] > 100)) {
+            $this->errors[] = 'Field rain_level harus antara 0 hingga 100.';
+        }
+
+        if (isset($data['rain_intensity']) && (!is_numeric($data['rain_intensity']) || (float)$data['rain_intensity'] < 0)) {
+            $this->errors[] = 'Field rain_intensity harus berupa angka >= 0.';
+        }
+
         if (!empty($data['sensor_id']) && strlen($data['sensor_id']) > 50) {
             $this->errors[] = 'Field sensor_id maksimal 50 karakter.';
         }
@@ -49,18 +65,27 @@ class SensorValidator
         }
 
         return [
-            'sensor_id'   => $data['sensor_id']   ?? 'UNKNOWN',
-            'zone'        => strtoupper($data['zone']),
-            'aqi'         => (float)$data['aqi'],
-            'temperature' => (float)$data['temperature'],
-            'humidity'    => (float)$data['humidity'],
-            'flood_level' => (float)($data['flood_level'] ?? 0),
-            'pm25'        => isset($data['pm25'])  ? (float)$data['pm25']  : null,
-            'pm10'        => isset($data['pm10'])  ? (float)$data['pm10']  : null,
-            'no2'         => isset($data['no2'])   ? (float)$data['no2']   : null,
-            'co'          => isset($data['co'])    ? (float)$data['co']    : null,
-            'o3'          => isset($data['o3'])    ? (float)$data['o3']    : null,
-            'recorded_at' => $data['recorded_at'] ?? date('Y-m-d H:i:s'),
+            'sensor_id'      => $data['sensor_id']      ?? 'UNKNOWN',
+            'zone'           => strtoupper($data['zone']),
+            // Udara
+            'aqi'            => (float)$data['aqi'],
+            'aqi_status'     => $data['aqi_status']      ?? null,
+            'pm25'           => isset($data['pm25'])      ? (float)$data['pm25']      : null,
+            'pm10'           => isset($data['pm10'])      ? (float)$data['pm10']      : null,
+            'no2'            => isset($data['no2'])       ? (float)$data['no2']       : null,
+            'co'             => isset($data['co'])        ? (float)$data['co']        : null,
+            'o3'             => isset($data['o3'])        ? (float)$data['o3']        : null,
+            // Cuaca
+            'temperature'    => (float)$data['temperature'],
+            'humidity'       => (float)$data['humidity'],
+            // Hujan (NEW)
+            'rain_level'     => isset($data['rain_level'])     ? (float)$data['rain_level']     : 0.0,
+            'rain_intensity' => isset($data['rain_intensity']) ? (float)$data['rain_intensity'] : 0.0,
+            'rain_status'    => $data['rain_status']     ?? null,
+            // Banjir
+            'flood_level'    => (float)($data['flood_level']   ?? 0),
+            'flood_status'   => $data['flood_status']    ?? null,
+            'recorded_at'    => $data['recorded_at']     ?? date('Y-m-d H:i:s'),
         ];
     }
 }
