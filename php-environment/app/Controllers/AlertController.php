@@ -15,9 +15,6 @@ class AlertController
         $this->model = new Alert();
     }
 
-    /**
-     * GET /api/environment/alerts[?zone=A&status=active]
-     */
     public function index(Request $request, Response $response): Response
     {
         $params = $request->getQueryParams();
@@ -38,9 +35,6 @@ class AlertController
         ]);
     }
 
-    /**
-     * GET /api/environment/alerts/{id}
-     */
     public function show(Request $request, Response $response, int $id): Response
     {
         $alert = $this->model->findById($id);
@@ -66,9 +60,6 @@ class AlertController
         ]);
     }
 
-    /**
-     * PUT /api/environment/alerts/{id}/resolve
-     */
     public function resolve(Request $request, Response $response, int $id): Response
     {
         $resolved = $this->model->resolve($id);
@@ -94,7 +85,6 @@ class AlertController
         ]);
     }
 
-    // -------------------------------------------------------
     private function json(Response $response, array $body, int $code = 200): Response
     {
         $response->getBody()->write(

@@ -10,9 +10,11 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 
 require __DIR__ . '/../vendor/autoload.php';
 
+// ---------- Load .env ----------
 $dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/../');
 $dotenv->safeLoad();
 
+// ---------- Create Slim App ----------
 $app = AppFactory::create();
 
 $app->addBodyParsingMiddleware();
@@ -26,6 +28,7 @@ $errorMiddleware = $app->addErrorMiddleware(
 $errorHandler = $errorMiddleware->getDefaultErrorHandler();
 $errorHandler->forceContentType('application/json');
 
+// CORS Middleware
 $app->add(function (Request $request, $handler): Response {
     if ($request->getMethod() === 'OPTIONS') {
         $response = new \Slim\Psr7\Response();
@@ -43,12 +46,15 @@ $app->add(function (Request $request, $handler): Response {
         ->withHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 });
 
+// ---------- Routes ----------
 
+// Health check
 $app->get('/health', function (Request $request, Response $response): Response {
     $controller = new App\Controllers\SensorController();
     return $controller->health($request, $response);
 });
 
+// Sensor endpoints
 $app->group('/api/environment', function (RouteCollectorProxy $group): void {
 
     // POST /api/environment/sensor
@@ -91,6 +97,31 @@ $app->group('/api/environment', function (RouteCollectorProxy $group): void {
     $group->put('/alerts/{id:[0-9]+}/resolve', function (Request $request, Response $response, array $args): Response {
         $controller = new App\Controllers\AlertController();
         return $controller->resolve($request, $response, (int)$args['id']);
+    });
+
+    // ── Vehicle / IR sensor endpoints ──────────────────────────────────────
+    // POST /api/environment/vehicle  — ingest dari Node-RED (IR counter)
+    $group->post('/vehicle', function (Request $request, Response $response): Response {
+        $controller = new App\Controllers\VehicleController();
+        return $controller->store($request, $response);
+    });
+
+    // GET /api/environment/vehicle/current[?zone=A]
+    $group->get('/vehicle/current', function (Request $request, Response $response): Response {
+        $controller = new App\Controllers\VehicleController();
+        return $controller->current($request, $response);
+    });
+
+    // GET /api/environment/vehicle/zones/{zone}[?from=&to=&limit=]
+    $group->get('/vehicle/zones/{zone:[A-Ea-e]}', function (Request $request, Response $response, array $args): Response {
+        $controller = new App\Controllers\VehicleController();
+        return $controller->history($request, $response, strtoupper($args['zone']));
+    });
+
+    // GET /api/environment/vehicle/zones/{zone}/aggregate[?period=1h|6h|24h|7d]
+    $group->get('/vehicle/zones/{zone:[A-Ea-e]}/aggregate', function (Request $request, Response $response, array $args): Response {
+        $controller = new App\Controllers\VehicleController();
+        return $controller->aggregate($request, $response, strtoupper($args['zone']));
     });
 });
 
