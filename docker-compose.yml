@@ -1,0 +1,89 @@
+# docker-compose.yml — Smart City Environment Service (Slim 4)
+version: '3.8'
+
+services:
+
+  environment-service:
+    build:
+      context: ./php-environment
+      dockerfile: Dockerfile
+    container_name: environment-service
+    ports:
+      - "8002:8002"
+    env_file:
+      - ./php-environment/.env
+    depends_on:
+      mysql_db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    networks:
+      - smartcity-net
+    restart: unless-stopped
+
+  mysql_db:
+    image: mysql:8.0
+    container_name: mysql_db
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: smartcity
+      MYSQL_USER: env_user
+      MYSQL_PASSWORD: env_secret
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uenv_user", "-penv_secret"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - smartcity-net
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+    networks:
+      - smartcity-net
+    restart: unless-stopped
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: mosquitto
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./iot/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    networks:
+      - smartcity-net
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+
+networks:
+  smartcity-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
