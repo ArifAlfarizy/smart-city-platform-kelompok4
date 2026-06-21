@@ -1,5 +1,4 @@
 <?php
-// public/index.php — Entry point Environment Service (Slim 4)
 
 declare(strict_types=1);
 
@@ -7,6 +6,8 @@ use Slim\Factory\AppFactory;
 use Slim\Routing\RouteCollectorProxy;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
+use App\Middleware\AuthMiddleware;
+use App\Middleware\RequireRoleMiddleware;
 
 require __DIR__ . '/../vendor/autoload.php';
 
@@ -46,18 +47,16 @@ $app->add(function (Request $request, $handler): Response {
         ->withHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 });
 
-// ---------- Routes ----------
-
-// Health check
+// Health check — TIDAK perlu auth, dipakai Docker healthcheck
 $app->get('/health', function (Request $request, Response $response): Response {
     $controller = new App\Controllers\SensorController();
     return $controller->health($request, $response);
 });
 
-// Sensor endpoints
+// (baik user login biasa, maupun IoT device via client_credentials grant)
 $app->group('/api/environment', function (RouteCollectorProxy $group): void {
 
-    // POST /api/environment/sensor
+    // POST /api/environment/sensor — diisi oleh IoT/Node-RED (token client_credentials)
     $group->post('/sensor', function (Request $request, Response $response): Response {
         $controller = new App\Controllers\SensorController();
         return $controller->store($request, $response);
@@ -93,14 +92,13 @@ $app->group('/api/environment', function (RouteCollectorProxy $group): void {
         return $controller->show($request, $response, (int)$args['id']);
     });
 
-    // PUT /api/environment/alerts/{id}/resolve
+    // PUT /api/environment/alerts/{id}/resolve — KHUSUS role operator
     $group->put('/alerts/{id:[0-9]+}/resolve', function (Request $request, Response $response, array $args): Response {
         $controller = new App\Controllers\AlertController();
         return $controller->resolve($request, $response, (int)$args['id']);
-    });
+    })->add(new RequireRoleMiddleware(['operator']));
 
-    // ── Vehicle / IR sensor endpoints ──────────────────────────────────────
-    // POST /api/environment/vehicle  — ingest dari Node-RED (IR counter)
+    // POST /api/environment/vehicle — ingest dari Node-RED (IR counter), token client_credentials
     $group->post('/vehicle', function (Request $request, Response $response): Response {
         $controller = new App\Controllers\VehicleController();
         return $controller->store($request, $response);
@@ -123,6 +121,7 @@ $app->group('/api/environment', function (RouteCollectorProxy $group): void {
         $controller = new App\Controllers\VehicleController();
         return $controller->aggregate($request, $response, strtoupper($args['zone']));
     });
-});
+
+})->add(new AuthMiddleware()); 
 
 $app->run();
