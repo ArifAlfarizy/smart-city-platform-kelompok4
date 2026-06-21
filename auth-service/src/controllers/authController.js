@@ -37,6 +37,7 @@ export const register = async (req, res) => {
       photo,
       oauth_provider,
       oauth_id,
+      role,
     });
 
     return res.status(201).json({
