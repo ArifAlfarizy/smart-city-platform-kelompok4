@@ -25,7 +25,7 @@
     "type": "function",
     "z": "tab_env_flow",
     "name": "Transform env → /api/environment/sensor",
-    "func": "const raw = msg.payload;\n\nif (!raw.zone || raw.aqi === undefined || raw.temperature === undefined || raw.humidity === undefined) {\n    node.warn('[ENV] Payload tidak lengkap, dibuang: ' + JSON.stringify(raw));\n    return null;\n}\n\nmsg.payload = {\n    sensor_id      : raw.sensor_id    || 'NODE-RED-BRIDGE',\n    zone           : String(raw.zone).toUpperCase(),\n    aqi            : parseFloat(raw.aqi),\n    aqi_status     : raw.aqi_status   || null,\n    pm25           : raw.pm25  !== undefined ? parseFloat(raw.pm25)  : null,\n    pm10           : raw.pm10  !== undefined ? parseFloat(raw.pm10)  : null,\n    no2            : raw.no2   !== undefined ? parseFloat(raw.no2)   : null,\n    co             : raw.co    !== undefined ? parseFloat(raw.co)    : null,\n    o3             : raw.o3    !== undefined ? parseFloat(raw.o3)    : null,\n    temperature    : parseFloat(raw.temperature),\n    humidity       : parseFloat(raw.humidity),\n    rain_level     : raw.rain_level     !== undefined ? parseFloat(raw.rain_level)     : 0,\n    rain_intensity : raw.rain_intensity !== undefined ? parseFloat(raw.rain_intensity) : 0,\n    rain_status    : raw.rain_status    || null,\n    flood_level    : parseFloat(raw.flood_level || 0),\n    flood_status   : raw.flood_status   || null,\n    recorded_at    : new Date().toISOString().replace('T', ' ').slice(0, 19)\n};\n\nmsg.headers = {\n    'Content-Type' : 'application/json',\n    'Authorization': 'Bearer ' + (env.get('IOT_JWT_TOKEN') || 'IOT_TOKEN_PLACEHOLDER')\n};\nmsg.url = (env.get('API_GATEWAY_URL') || 'http://api-gateway:3000') + '/api/environment/sensor';\n\nnode.log('[ENV] zone=' + msg.payload.zone + ' aqi=' + msg.payload.aqi + ' rain=' + msg.payload.rain_intensity);\nreturn msg;",
+    "func": "const raw = msg.payload;\n\nif (!raw.zone || raw.aqi === undefined || raw.temperature === undefined || raw.humidity === undefined) {\n    node.warn('[ENV] Payload tidak lengkap, dibuang: ' + JSON.stringify(raw));\n    return null;\n}\n\nmsg.payload = {\n    sensor_id      : raw.sensor_id    || 'NODE-RED-BRIDGE',\n    zone           : String(raw.zone).toUpperCase(),\n    aqi            : parseFloat(raw.aqi),\n    aqi_status     : raw.aqi_status   || null,\n    pm25           : raw.pm25  !== undefined ? parseFloat(raw.pm25)  : null,\n    pm10           : raw.pm10  !== undefined ? parseFloat(raw.pm10)  : null,\n    no2            : raw.no2   !== undefined ? parseFloat(raw.no2)   : null,\n    co             : raw.co    !== undefined ? parseFloat(raw.co)    : null,\n    o3             : raw.o3    !== undefined ? parseFloat(raw.o3)    : null,\n    temperature    : parseFloat(raw.temperature),\n    humidity       : parseFloat(raw.humidity),\n    rain_level     : raw.rain_level     !== undefined ? parseFloat(raw.rain_level)     : 0,\n    rain_intensity : raw.rain_intensity !== undefined ? parseFloat(raw.rain_intensity) : 0,\n    rain_status    : raw.rain_status    || null,\n    flood_level    : parseFloat(raw.flood_level || 0),\n    flood_status   : raw.flood_status   || null,\n    recorded_at    : new Date().toISOString().replace('T', ' ').slice(0, 19)\n};\n\nconst token = flow.get('IOT_JWT_TOKEN');if (!token) {node.warn('[ENV] Token belum tersedia, payload di-skip & masuk antrian.');flow.set('pendingEnvQueue', (flow.get('pendingEnvQueue') || []).concat([msg.payload]));return null;}msg.headers = {'Content-Type' : 'application/json','Authorization': 'Bearer ' + token};\nmsg.url = (env.get('API_GATEWAY_URL') || 'http://api-gateway:3000') + '/api/environment/sensor';\n\nnode.log('[ENV] zone=' + msg.payload.zone + ' aqi=' + msg.payload.aqi + ' rain=' + msg.payload.rain_intensity);\nreturn msg;",
     "outputs": 1,
     "x": 390, "y": 80,
     "wires": [["http_post_env", "debug_env"]]
@@ -49,7 +49,7 @@
     "type": "function",
     "z": "tab_env_flow",
     "name": "Handle env response",
-    "func": "const status = msg.statusCode;\nif (status === 201 || status === 200) {\n    node.log('[ENV OK] ' + JSON.stringify(msg.payload.data ? msg.payload.data.zone : msg.payload));\n} else if (status === 429) {\n    node.warn('[ENV RATE LIMIT] Antrian lokal.');\n    flow.set('pendingEnvQueue', (flow.get('pendingEnvQueue') || []).concat([msg.payload]));\n} else {\n    node.error('[ENV ERROR ' + status + '] ' + JSON.stringify(msg.payload));\n    flow.set('pendingEnvQueue', (flow.get('pendingEnvQueue') || []).concat([msg.payload]));\n}\nreturn msg;",
+    "func": "const status = msg.statusCode;if (status === 201 || status === 200) {node.log('[ENV OK] ' + JSON.stringify(msg.payload.data ? msg.payload.data.zone : msg.payload));} else if (status === 401) {node.warn('[ENV] Token invalid/expired, force refresh & re-queue.');flow.set('iot_token_exp', 0); // paksa refresh di cek berikutnyaflow.set('pendingEnvQueue', (flow.get('pendingEnvQueue') || []).concat([msg.payload]));} else if (status === 429) {node.warn('[ENV RATE LIMIT] Antrian lokal.');flow.set('pendingEnvQueue', (flow.get('pendingEnvQueue') || []).concat([msg.payload]));} else {node.error('[ENV ERROR ' + status + '] ' + JSON.stringify(msg.payload));flow.set('pendingEnvQueue', (flow.get('pendingEnvQueue') || []).concat([msg.payload]));}return msg;",
     "outputs": 1,
     "x": 920, "y": 80,
     "wires": [["debug_env_resp"]]
@@ -95,7 +95,7 @@
     "type": "function",
     "z": "tab_env_flow",
     "name": "Transform vehicle → /api/environment/vehicle",
-    "func": "const raw = msg.payload;\n\nif (!raw.zone || raw.vehicle_count === undefined) {\n    node.warn('[VEHICLE] Payload tidak lengkap: ' + JSON.stringify(raw));\n    return null;\n}\n\n// Untuk korelasi ML, coba ambil data rain dari context flow\n// (diset oleh flow env saat subscribe city/+/air)\nconst lastEnvByZone = flow.get('lastEnv_' + String(raw.zone).toUpperCase()) || {};\n\nmsg.payload = {\n    sensor_id      : raw.sensor_id    || 'NODE-RED-IR',\n    zone           : String(raw.zone).toUpperCase(),\n    vehicle_count  : parseInt(raw.vehicle_count),\n    interval_sec   : parseInt(raw.interval_sec || 60),\n    traffic_status : raw.traffic_status || null,\n    // Ambil rain context dari env data terbaru di zona ini\n    rain_intensity : lastEnvByZone.rain_intensity || parseFloat(raw.rain_intensity || 0),\n    rain_status    : lastEnvByZone.rain_status    || raw.rain_status || null,\n    flood_level    : lastEnvByZone.flood_level    || parseFloat(raw.flood_level || 0),\n    recorded_at    : new Date().toISOString().replace('T', ' ').slice(0, 19)\n};\n\nmsg.headers = {\n    'Content-Type' : 'application/json',\n    'Authorization': 'Bearer ' + (env.get('IOT_JWT_TOKEN') || 'IOT_TOKEN_PLACEHOLDER')\n};\nmsg.url = (env.get('API_GATEWAY_URL') || 'http://api-gateway:3000') + '/api/environment/vehicle';\n\nnode.log('[VEHICLE] zone=' + msg.payload.zone + ' count=' + msg.payload.vehicle_count + ' rain=' + msg.payload.rain_intensity);\nreturn msg;",
+    "func": "const raw = msg.payload;\n\nif (!raw.zone || raw.vehicle_count === undefined) {\n    node.warn('[VEHICLE] Payload tidak lengkap: ' + JSON.stringify(raw));\n    return null;\n}\n\n// Untuk korelasi ML, coba ambil data rain dari context flow\n// (diset oleh flow env saat subscribe city/+/air)\nconst lastEnvByZone = flow.get('lastEnv_' + String(raw.zone).toUpperCase()) || {};\n\nmsg.payload = {\n    sensor_id      : raw.sensor_id    || 'NODE-RED-IR',\n    zone           : String(raw.zone).toUpperCase(),\n    vehicle_count  : parseInt(raw.vehicle_count),\n    interval_sec   : parseInt(raw.interval_sec || 60),\n    traffic_status : raw.traffic_status || null,\n    // Ambil rain context dari env data terbaru di zona ini\n    rain_intensity : lastEnvByZone.rain_intensity || parseFloat(raw.rain_intensity || 0),\n    rain_status    : lastEnvByZone.rain_status    || raw.rain_status || null,\n    flood_level    : lastEnvByZone.flood_level    || parseFloat(raw.flood_level || 0),\n    recorded_at    : new Date().toISOString().replace('T', ' ').slice(0, 19)\n};\n\nconst token = flow.get('IOT_JWT_TOKEN');if (!token) {node.warn('[VEHICLE] Token belum tersedia, payload di-skip & masuk antrian.');flow.set('pendingVehicleQueue', (flow.get('pendingVehicleQueue') || []).concat([msg.payload]));return null;}msg.headers = {'Content-Type' : 'application/json','Authorization': 'Bearer ' + token};\nmsg.url = (env.get('API_GATEWAY_URL') || 'http://api-gateway:3000') + '/api/environment/vehicle';\n\nnode.log('[VEHICLE] zone=' + msg.payload.zone + ' count=' + msg.payload.vehicle_count + ' rain=' + msg.payload.rain_intensity);\nreturn msg;",
     "outputs": 1,
     "x": 420, "y": 280,
     "wires": [["http_post_vehicle", "debug_vehicle"]]
@@ -119,7 +119,7 @@
     "type": "function",
     "z": "tab_env_flow",
     "name": "Handle vehicle response",
-    "func": "const status = msg.statusCode;\nif (status === 201 || status === 200) {\n    node.log('[VEHICLE OK] ' + JSON.stringify(msg.payload.data ? msg.payload.data.traffic_status : status));\n} else if (status === 429) {\n    node.warn('[VEHICLE RATE LIMIT]');\n    flow.set('pendingVehicleQueue', (flow.get('pendingVehicleQueue') || []).concat([msg.payload]));\n} else {\n    node.error('[VEHICLE ERROR ' + status + '] ' + JSON.stringify(msg.payload));\n    flow.set('pendingVehicleQueue', (flow.get('pendingVehicleQueue') || []).concat([msg.payload]));\n}\nreturn msg;",
+    "func": "const status = msg.statusCode;if (status === 201 || status === 200) {node.log('[VEHICLE OK] ' + JSON.stringify(msg.payload.data ? msg.payload.data.zone : msg.payload));} else if (status === 401) {node.warn('[VEHICLE] Token invalid/expired, force refresh & re-queue.');flow.set('iot_token_exp', 0); // paksa refresh di cek berikutnyaflow.set('pendingVehicleQueue', (flow.get('pendingVehicleQueue') || []).concat([msg.payload]));} else if (status === 429) {node.warn('[VEHICLE RATE LIMIT] Antrian lokal.');flow.set('pendingVehicleQueue', (flow.get('pendingVehicleQueue') || []).concat([msg.payload]));} else {node.error('[VEHICLE ERROR ' + status + '] ' + JSON.stringify(msg.payload));flow.set('pendingVehicleQueue', (flow.get('pendingVehicleQueue') || []).concat([msg.payload]));}return msg;",
     "outputs": 1,
     "x": 960, "y": 280,
     "wires": [["debug_vehicle_resp"]]
@@ -207,5 +207,79 @@
       "user": "iot_device",
       "password": "iot_secret"
     }
+  },
+
+  {
+    "id": "inject_token_refresh",
+    "type": "inject",
+    "z": "tab_env_flow",
+    "name": "Check/Refresh Token (tiap 30s)",
+    "props": [{ "p": "payload" }],
+    "repeat": "30",
+    "once": true,
+    "onceDelay": "1",
+    "topic": "",
+    "payload": "",
+    "payloadType": "date",
+    "x": 150, "y": 600,
+    "wires": [["check_token_expiry"]]
+  },
+  {
+    "id": "check_token_expiry",
+    "type": "function",
+    "z": "tab_env_flow",
+    "name": "Cek token masih valid?",
+    "func": "const exp = flow.get('iot_token_exp') || 0;\nconst now = Date.now();\n\n// kasih buffer 60 detik sebelum expired biar gak mepet\nif (now < exp - 60000) {\n    node.status({ fill: 'green', shape: 'dot', text: 'token valid' });\n    return null; // skip, token masih valid\n}\n\nnode.status({ fill: 'yellow', shape: 'ring', text: 'refreshing...' });\nreturn msg;",
+    "outputs": 1,
+    "x": 400, "y": 600,
+    "wires": [["build_token_request"]]
+  },
+  {
+    "id": "build_token_request",
+    "type": "function",
+    "z": "tab_env_flow",
+    "name": "Build request /oauth/token",
+    "func": "const authUrl = env.get('AUTH_SERVICE_URL') || 'http://auth-service:3002';\n\nmsg.url = authUrl + '/oauth/token';\nmsg.method = 'POST';\nmsg.headers = { 'Content-Type': 'application/json' };\nmsg.payload = {\n    grant_type: 'client_credentials',\n    client_id: env.get('IOT_CLIENT_ID') || 'iot-environment-device',\n    client_secret: env.get('IOT_CLIENT_SECRET') || ''\n};\n\nnode.log('[AUTH] Requesting new token from ' + msg.url);\nreturn msg;",
+    "outputs": 1,
+    "x": 650, "y": 600,
+    "wires": [["http_request_token"]]
+  },
+  {
+    "id": "http_request_token",
+    "type": "http request",
+    "z": "tab_env_flow",
+    "name": "POST /oauth/token",
+    "method": "POST",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "insecureHTTPParser": false,
+    "authType": "",
+    "senderr": false,
+    "x": 880, "y": 600,
+    "wires": [["save_iot_token"]]
+  },
+  {
+    "id": "save_iot_token",
+    "type": "function",
+    "z": "tab_env_flow",
+    "name": "Simpan token ke flow context",
+    "func": "if (msg.statusCode === 200 && msg.payload && msg.payload.access_token) {\n    flow.set('IOT_JWT_TOKEN', msg.payload.access_token);\n    const expiresInMs = (msg.payload.expires_in || 3600) * 1000;\n    flow.set('iot_token_exp', Date.now() + expiresInMs);\n\n    node.status({ fill: 'green', shape: 'dot', text: 'token refreshed' });\n    node.log('[AUTH OK] Token refreshed, expires in ' + msg.payload.expires_in + 's');\n} else {\n    node.status({ fill: 'red', shape: 'ring', text: 'auth failed' });\n    node.error('[AUTH FAILED] status=' + msg.statusCode + ' body=' + JSON.stringify(msg.payload));\n}\nreturn null;",
+    "outputs": 1,
+    "x": 1120, "y": 600,
+    "wires": [["debug_token"]]
+  },
+  {
+    "id": "debug_token",
+    "type": "debug",
+    "z": "tab_env_flow",
+    "name": "Debug Token Status",
+    "active": false,
+    "complete": "payload",
+    "x": 1100, "y": 660,
+    "wires": []
   }
 ]
