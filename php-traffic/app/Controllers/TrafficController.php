@@ -2,6 +2,7 @@
 // app/Controllers/TrafficController.php
 
 require_once dirname(__DIR__) . '/Models/TrafficData.php';
+require_once dirname(__DIR__) . '/Services/RabbitMQPublisher.php'; // Path ke publisher lamamu
 
 class TrafficController {
     private $trafficModel;
@@ -11,89 +12,81 @@ class TrafficController {
     }
 
     /**
-     * Menangani POST /api/traffic/sensor
-     * Menerima kiriman data dari IoT Gateway (Node-RED)
+     * Menangani POST /traffic-data
      */
-    public function handleSensorInput() {
+    public function handlePostTrafficData() {
         $inputData = json_decode(file_get_contents("php://input"), true);
 
-        // Validasi input dasar
-        if (!isset($inputData['sensor_id']) || !isset($inputData['zone']) || 
-            !isset($inputData['vehicle_count']) || !isset($inputData['avg_speed']) || 
-            !isset($inputData['congestion_level'])) {
+        // Validasi input data sesuai spesifikasi baru
+        if (!isset($inputData['vehicle_count']) || !isset($inputData['average_speed']) || 
+            !isset($inputData['congestion_level']) || !isset($inputData['observation_time'])) {
             
-            $this->sendResponse("error", 400, "Incomplete sensor data payload");
+            $this->sendResponse("error", 400, "Incomplete traffic data payload");
         }
 
-        $sensor_id = $inputData['sensor_id'];
-        $zone = strtoupper($inputData['zone']);
+        $road_name = $inputData['road_name'] ?? 'Jalan MT Haryono'; 
         $vehicle_count = intval($inputData['vehicle_count']);
-        $avg_speed = floatval($inputData['avg_speed']);
-        $congestion_level = intval($inputData['congestion_level']);
+        $average_speed = floatval($inputData['average_speed']);
+        $congestion_level = $inputData['congestion_level']; // Normal, Padat, Macet, Sangat Macet
+        $observation_time = $inputData['observation_time'];
 
-        if (!in_array($zone, ['A', 'B', 'C'])) {
-            $this->sendResponse("error", 400, "Invalid zone. Allowed zones are A, B, or C");
-        }
-
-        // 1. Amankan data masuk ke database MySQL lokal terlebih dahulu
-        $insertedId = $this->trafficModel->create($sensor_id, $zone, $vehicle_count, $avg_speed, $congestion_level);
+        // 1. Simpan ke database lokal
+        $insertedId = $this->trafficModel->create($road_name, $vehicle_count, $average_speed, $congestion_level, $observation_time);
 
         if ($insertedId) {
             
-            // 2. INTEGRASI ASINKRON RABBITMQ (ROLE 3)
-            require_once dirname(__DIR__) . '/Services/RabbitMQPublisher.php';
+            // 2. Kirim Event ke RabbitMQ dengan routing key 'traffic.updated'
             $publisher = new RabbitMQPublisher();
 
-            // Sesuai dengan format skema Pydantic 'TrafficIn' milik ML Service kelompokmu:
-            // payload membutuhkan properti: zone, vehicle_count, avg_speed, incident
             $rabbitPayload = [
-                "zone" => $zone,
-                "vehicle_count" => (float)$vehicle_count,
-                "avg_speed" => $avg_speed,
-                "incident" => 0 // Default 0 karena dikirim otomatis berkala oleh sensor bukan laporan operator
+                "id" => (int)$insertedId,
+                "road_name" => $road_name,
+                "vehicle_count" => (int)$vehicle_count,
+                "average_speed" => $average_speed,
+                "congestion_level" => $congestion_level,
+                "observation_time" => $observation_time
             ];
 
-            // Kirim pesan ke exchange dengan routing key 'traffic.sensor.received'
-            $publisher->publishEvent('traffic.sensor.received', $rabbitPayload);
+            // Sesuai PRD Bab 10: mempublikasikan event 'traffic.updated'
+            $publisher->publishEvent('traffic.updated', $rabbitPayload);
             
-            // 3. Kembalikan respons sukses ke Node-RED / Client
-            $this->sendResponse("success", 201, "Sensor data recorded and event published successfully", [
-                "id" => $insertedId,
-                "zone" => $zone
-            ]);
+            // 3. Beri respons sukses ke client / simulator IoT
+            $this->sendResponse("success", 201, "Traffic data recorded and event published successfully", $rabbitPayload);
         } else {
-            $this->sendResponse("error", 500, "Failed to record sensor data to database");
+            $this->sendResponse("error", 500, "Failed to record traffic data to database");
         }
     }
 
     /**
-     * Menangani GET /api/traffic/current
-     * Melihat kondisi lalu lintas terbaru dari setiap zona
+     * Menangani GET /traffic-status
      */
-    public function handleGetCurrentStatus() {
-        $currentStatus = $this->trafficModel->getCurrentStatus();
-        $this->sendResponse("success", 200, "Successfully retrieved current traffic status", $currentStatus);
+    public function handleGetTrafficStatus() {
+        $currentStatus = $this->trafficModel->getLatestStatus();
+        $this->sendResponse("success", 200, "Successfully retrieved latest traffic status", $currentStatus);
     }
 
     /**
-     * Menangani GET /api/traffic/zones/{zone}
-     * Melihat riwayat data lalu lintas berdasarkan parameter zona
+     * Menangani GET /traffic-history
      */
-    public function handleGetZoneHistory($zone) {
-        $zone = strtoupper($zone);
-        if (!in_array($zone, ['A', 'B', 'C'])) {
-            $this->sendResponse("error", 400, "Invalid zone parameter. Allowed zones are A, B, or C");
-        }
-
-        $history = $this->trafficModel->getHistoryByZone($zone);
-        $this->sendResponse("success", 200, "Successfully retrieved traffic history for zone " . $zone, $history);
+    public function handleGetTrafficHistory() {
+        $history = $this->trafficModel->getHistory();
+        $this->sendResponse("success", 200, "Successfully retrieved traffic logs history", $history);
     }
 
     /**
-     * Helper internal untuk standardisasi format JSON response PRD
+     * Menangani GET /traffic-summary
+     */
+    public function handleGetTrafficSummary() {
+        $summary = $this->trafficModel->getSummary();
+        $this->sendResponse("success", 200, "Successfully retrieved traffic data summary", $summary);
+    }
+
+    /**
+     * Helper internal untuk standardisasi format JSON response
      */
     private function sendResponse($status, $code, $message, $data = null) {
         http_response_code($code);
+        header('Content-Type: application/json');
         echo json_encode([
             "status" => $status,
             "code" => $code,
