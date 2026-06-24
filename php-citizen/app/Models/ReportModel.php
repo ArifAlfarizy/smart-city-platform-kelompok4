@@ -4,16 +4,17 @@ namespace App\Models;
 
 use CodeIgniter\Model;
 
-class ReportModel extends Model {
+class ReportModel extends Model
+{
     protected $table = 'reports';
     protected $primaryKey = 'id';
     protected $allowedFields = [
         'citizen_id',
+        'road_name',
         'category',
-        'zone',
         'description',
         'status'
     ];
-
-    protected $useTimestaps =false;
+    protected $returnType = 'array';
+    protected $useTimestamps = false;
 }
