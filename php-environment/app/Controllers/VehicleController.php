@@ -1,25 +1,24 @@
 <?php
-// app/Controllers/SensorController.php
+// app/Controllers/VehicleController.php
 namespace App\Controllers;
 
-use App\Models\SensorReading;
-use App\Models\Database;
+use App\Models\VehicleCount;
 use App\Services\RabbitMQPublisher;
-use App\Validators\SensorValidator;
+use App\Validators\VehicleValidator;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
-class SensorController
+class VehicleController
 {
-    private SensorReading     $model;
+    private VehicleCount      $model;
     private RabbitMQPublisher $publisher;
-    private SensorValidator   $validator;
+    private VehicleValidator  $validator;
 
     public function __construct()
     {
-        $this->model     = new SensorReading();
+        $this->model     = new VehicleCount();
         $this->publisher = new RabbitMQPublisher();
-        $this->validator = new SensorValidator();
+        $this->validator = new VehicleValidator();
     }
 
     public function store(Request $request, Response $response): Response
@@ -41,25 +40,16 @@ class SensorController
 
         $record = $this->model->create($validated);
 
-        $this->publisher->publish('environment.sensor.received', [
+        $this->publisher->publish('vehicle.count.received', [
             'id'             => $record['id'],
             'sensor_id'      => $record['sensor_id'],
             'zone'           => $record['zone'],
-            // Kualitas udara
-            'aqi'            => (float)$record['aqi'],
-            'aqi_status'     => $record['aqi_status'],
-            'pm25'           => $record['pm25']  !== null ? (float)$record['pm25']  : null,
-            'pm10'           => $record['pm10']  !== null ? (float)$record['pm10']  : null,
-            // Cuaca
-            'temperature'    => (float)$record['temperature'],
-            'humidity'       => (float)$record['humidity'],
-            // Hujan
-            'rain_level'     => (float)$record['rain_level'],
+            'vehicle_count'  => (int)$record['vehicle_count'],
+            'interval_sec'   => (int)$record['interval_sec'],
+            'traffic_status' => $record['traffic_status'],
             'rain_intensity' => (float)$record['rain_intensity'],
             'rain_status'    => $record['rain_status'],
-            // Banjir
             'flood_level'    => (float)$record['flood_level'],
-            'flood_status'   => $record['flood_status'],
             'timestamp'      => $record['recorded_at'],
         ]);
 
@@ -67,7 +57,7 @@ class SensorController
             'status'    => 'success',
             'code'      => 201,
             'data'      => $record,
-            'message'   => 'Data sensor lingkungan berhasil disimpan.',
+            'message'   => 'Data kendaraan berhasil disimpan.',
             'timestamp' => date('c'),
             'service'   => 'environment-service',
         ], 201);
@@ -96,8 +86,8 @@ class SensorController
             'code'      => 200,
             'data'      => $data,
             'message'   => $zone
-                ? "Kondisi lingkungan terkini Zona {$zone}."
-                : 'Kondisi lingkungan terkini semua zona.',
+                ? "Status lalu lintas terkini Zona {$zone}."
+                : 'Status lalu lintas terkini semua zona.',
             'timestamp' => date('c'),
             'service'   => 'environment-service',
         ]);
@@ -108,8 +98,8 @@ class SensorController
         $params = $request->getQueryParams();
         $from   = $params['from']  ?? null;
         $to     = $params['to']    ?? null;
-        $limit  = (int)($params['limit'] ?? 100);
-        $limit  = min(max($limit, 1), 500);
+        $limit  = (int)($params['limit'] ?? 200);
+        $limit  = min(max($limit, 1), 1000); // ML butuh data banyak, max 1000
 
         $data = $this->model->history($zone, $from, $to, $limit);
 
@@ -117,28 +107,39 @@ class SensorController
             'status'    => 'success',
             'code'      => 200,
             'data'      => $data,
-            'message'   => "Riwayat data lingkungan Zona {$zone}.",
+            'message'   => "Riwayat data kendaraan Zona {$zone}.",
             'timestamp' => date('c'),
             'service'   => 'environment-service',
         ]);
     }
 
-    public function health(Request $request, Response $response): Response
+    public function aggregate(Request $request, Response $response, string $zone): Response
     {
-        $dbOk = Database::isAlive();
+        $params = $request->getQueryParams();
+        $period = $params['period'] ?? '1h';
+
+        $validPeriods = ['1h', '6h', '24h', '7d'];
+        if (!in_array($period, $validPeriods, true)) {
+            return $this->json($response, [
+                'status'    => 'error',
+                'code'      => 400,
+                'data'      => null,
+                'message'   => 'Period tidak valid. Gunakan: 1h, 6h, 24h, 7d.',
+                'timestamp' => date('c'),
+                'service'   => 'environment-service',
+            ], 400);
+        }
+
+        $data = $this->model->aggregate($zone, $period);
 
         return $this->json($response, [
-            'status'    => $dbOk ? 'ok' : 'degraded',
-            'code'      => $dbOk ? 200 : 503,
-            'data'      => [
-                'service'  => 'environment-service',
-                'database' => $dbOk ? 'connected' : 'disconnected',
-                'port'     => 8002,
-            ],
-            'message'   => $dbOk ? 'Service sehat.' : 'Koneksi database gagal.',
+            'status'    => 'success',
+            'code'      => 200,
+            'data'      => $data,
+            'message'   => "Agregat lalu lintas Zona {$zone} periode {$period}.",
             'timestamp' => date('c'),
             'service'   => 'environment-service',
-        ], $dbOk ? 200 : 503);
+        ]);
     }
 
     private function json(Response $response, array $body, int $code = 200): Response
