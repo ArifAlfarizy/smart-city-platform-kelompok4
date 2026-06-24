@@ -1,23 +1,6 @@
-"""
-main.py
--------
-FastAPI Smart City ML Service
-Port  : 5000
-Models: Traffic Predictor, Air Quality Classifier, Anomaly Detector
-
-Endpoints:
-  GET  /health
-  GET  /metrics
-  POST /api/ml/predict/traffic
-  POST /api/ml/predict/aqi
-  POST /api/ml/detect/anomaly
-  GET  /api/ml/model/feature-importance
-  GET  /api/ml/predictions
-  POST /predict/batch
-"""
-
 import os
-import time
+import threading
+import logging
 import joblib
 import numpy as np
 from datetime import datetime, timezone
@@ -25,19 +8,24 @@ from typing import Optional, List
 
 from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.responses import JSONResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 from prometheus_fastapi_instrumentator import Instrumentator
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-# Database
 import mysql.connector
 from mysql.connector import Error as MySQLError
 
-# JWT
 import jwt as pyjwt
 
 load_dotenv()
+
+# Logging 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s"
+)
+logger = logging.getLogger(__name__)
 
 # App Setup
 app = FastAPI(
@@ -46,23 +34,61 @@ app = FastAPI(
     description="Traffic prediction, Air Quality classification & Anomaly detection",
 )
 
-security = HTTPBearer()
-
-# Prometheus metrics
 Instrumentator().instrument(app).expose(app, endpoint="/metrics")
+
+security = HTTPBearer()
 
 # Load Models
 MODEL_PATH = os.getenv("MODEL_PATH", "models/smartcity_models.pkl")
 
 try:
     BUNDLE = joblib.load(MODEL_PATH)
-    print(f"✓ Models loaded from {MODEL_PATH}")
-    print(f"  Available: {list(BUNDLE.keys())}")
+    logger.info(f"  Models loaded from {MODEL_PATH}")
+    logger.info(f"  Available: {list(BUNDLE.keys())}")
 except FileNotFoundError:
-    print(f"  Model file not found: {MODEL_PATH}")
-    print("   Jalankan: python train_models.py")
+    logger.warning(f"  Model file not found: {MODEL_PATH}")
+    logger.warning("   Jalankan: python train_models.py")
     BUNDLE = {}
 
+# RabbitMQ Consumers (background threads)
+from consumers.anomaly_publisher import AnomalyPublisher
+from consumers.traffic_consumer  import start_traffic_consumer
+from consumers.air_consumer      import start_air_consumer
+from consumers.citizen_consumer  import start_citizen_consumer
+
+anomaly_pub = AnomalyPublisher()
+
+def _start_consumers():
+    import time
+    time.sleep(5)  # Tunggu RabbitMQ siap
+
+    threads = [
+        threading.Thread(
+            target=start_traffic_consumer,
+            args=(BUNDLE, anomaly_pub),
+            daemon=True, name="traffic-consumer"
+        ),
+        threading.Thread(
+            target=start_air_consumer,
+            args=(BUNDLE, anomaly_pub),
+            daemon=True, name="air-consumer"
+        ),
+        threading.Thread(
+            target=start_citizen_consumer,
+            args=(BUNDLE, anomaly_pub),
+            daemon=True, name="citizen-consumer"
+        ),
+    ]
+
+    for t in threads:
+        t.start()
+        logger.info(f" Started consumer thread: {t.name}")
+
+
+consumer_thread = threading.Thread(
+    target=_start_consumers, daemon=True, name="consumer-starter"
+)
+consumer_thread.start()
 
 # DB Helper
 def get_db():
@@ -71,8 +97,8 @@ def get_db():
             host=os.getenv("DB_HOST", "mysql"),
             port=int(os.getenv("DB_PORT", 3306)),
             database=os.getenv("DB_NAME", "smartcity"),
-            user=os.getenv("DB_USER", "ml_user"),
-            password=os.getenv("DB_PASS", "ml_password"),
+            user=os.getenv("DB_USER", "root"),
+            password=os.getenv("DB_PASS", ""),
         )
         return conn
     except MySQLError:
@@ -82,17 +108,13 @@ def get_db():
 def save_prediction(model_type: str, zone: Optional[str],
                     input_data: dict, result: dict,
                     confidence: Optional[float] = None):
-    """Simpan hasil prediksi ke tabel ml_predictions."""
     import json
     conn = get_db()
     if not conn:
-        return  # DB tidak tersedia — skip, jangan crash
+        return
     try:
         cur = conn.cursor()
         cur.execute(
-            """INSERT INTO ml_predictions
-               (model_type, zone, input_data, result, confidence_score)
-               VALUES (%s, %s, %s, %s, %s)""",
             (model_type, zone,
              json.dumps(input_data), json.dumps(result),
              confidence)
@@ -105,7 +127,7 @@ def save_prediction(model_type: str, zone: Optional[str],
 
 
 # JWT Auth
-JWT_SECRET    = os.getenv("JWT_SECRET", "dev_secret")
+JWT_SECRET    = os.getenv("JWT_SECRET", "accessrahasia")
 JWT_ALGORITHM = "HS256"
 
 
@@ -125,7 +147,6 @@ def verify_jwt(credentials: HTTPAuthorizationCredentials = Depends(security)) ->
 
 
 def require_operator(payload: dict = Depends(verify_jwt)) -> dict:
-    """Dependency — hanya role operator yang boleh akses."""
     if payload.get("role") != "operator":
         raise HTTPException(status_code=403, detail=response_body(
             "error", 403, None, "Akses ditolak — hanya operator"
@@ -157,12 +178,12 @@ def error(code: int, message: str):
 
 # Pydantic Schemas
 class TrafficIn(BaseModel):
-    zone:         str
+    zone:          str
     vehicle_count: float = Field(..., ge=0)
-    avg_speed:    float  = Field(..., ge=0)
-    hour:         int    = Field(..., ge=0, le=23)
-    day_of_week:  int    = Field(..., ge=0, le=6)
-    incident:     int    = Field(0, ge=0, le=1)
+    avg_speed:     float = Field(..., ge=0)
+    hour:          int   = Field(..., ge=0, le=23)
+    day_of_week:   int   = Field(..., ge=0, le=6)
+    incident:      int   = Field(0, ge=0, le=1)
 
 
 class AQIIn(BaseModel):
@@ -186,49 +207,37 @@ class BatchItem(BaseModel):
 class BatchIn(BaseModel):
     predictions: List[BatchItem]
 
-
 # ENDPOINTS
-
 # GET /health
 @app.get("/health")
 def health():
-    """Status service dan daftar model yang ter-load."""
     db_ok = get_db() is not None
     return success({
-        "service":      "python-ml",
+        "service":       "python-ml",
         "models_loaded": list(BUNDLE.keys()),
-        "db_connected": db_ok,
+        "db_connected":  db_ok,
     }, "Service healthy")
 
 
 # POST /api/ml/predict/traffic
 @app.post("/api/ml/predict/traffic")
 def predict_traffic(body: TrafficIn, _=Depends(verify_jwt)):
-    """
-    Prediksi kepadatan lalu lintas berdasarkan kondisi saat ini.
-    Input  : zone, vehicle_count, avg_speed, hour, day_of_week, incident
-    Output : predicted_density, congestion_level, confidence
-    """
     if "traffic" not in BUNDLE:
         return error(503, "Traffic model belum tersedia")
 
     b = BUNDLE["traffic"]
 
-    # Map zone ke location_enc
     zone_map = {"A": 0, "B": 1, "C": 2, "D": 3,
                 "zone1": 0, "zone2": 1, "zone3": 2, "zone4": 3}
     location_enc = zone_map.get(str(body.zone).upper(),
                                 zone_map.get(body.zone, 0))
 
-    # Gunakan vehicle_count sebagai prev_density (kondisi terkini)
-    weather_code = 0  # default cerah
-
     try:
         X = b["scaler"].transform([[
             body.hour,
             body.day_of_week,
-            weather_code,
-            body.vehicle_count,   # prev_density
+            0,                  # weather_code default cerah
+            body.vehicle_count, # prev_density
             location_enc,
         ]])
         density = float(b["model"].predict(X)[0])
@@ -236,45 +245,30 @@ def predict_traffic(body: TrafficIn, _=Depends(verify_jwt)):
     except Exception as e:
         return error(500, f"Prediksi gagal: {str(e)}")
 
-    if density > 80:
-        level = "Padat"
-    elif density > 40:
-        level = "Sedang"
-    else:
-        level = "Lancar"
+    level = "Padat" if density > 80 else "Sedang" if density > 40 else "Lancar"
 
-    # Estimasi confidence dari variance antar tree
     tree_preds = np.array([t.predict(X)[0] for t in b["model"].estimators_])
-    confidence = round(float(1 - (tree_preds.std() / (tree_preds.mean() + 1e-6))), 4)
+    confidence = float(1 - (tree_preds.std() / (tree_preds.mean() + 1e-6)))
     confidence = max(0.0, min(1.0, confidence))
 
     result = {
         "predicted_density": round(density, 1),
         "congestion_level":  level,
-        "confidence":        confidence,
+        "confidence":        round(confidence, 4),
         "zone":              body.zone,
     }
 
-    save_prediction("traffic", body.zone,
-                    body.model_dump(), result, confidence)
-
+    save_prediction("traffic", body.zone, body.model_dump(), result, confidence)
     return success(result, "Prediksi traffic berhasil")
 
 
 # POST /api/ml/predict/aqi
 @app.post("/api/ml/predict/aqi")
 def predict_aqi(body: AQIIn, _=Depends(verify_jwt)):
-    """
-    Klasifikasi kategori kualitas udara.
-    Input  : zone, aqi, temperature, humidity
-    Output : aqi_category, confidence, probabilities
-    """
     if "air" not in BUNDLE:
         return error(503, "AQI model belum tersedia")
 
-    b = BUNDLE["air"]
-
-    # Derive fitur dari AQI value (pendekatan inverse)
+    b       = BUNDLE["air"]
     aqi_val = body.aqi
     pm25    = aqi_val * 0.8
     pm10    = pm25 * 1.5
@@ -293,42 +287,33 @@ def predict_aqi(body: AQIIn, _=Depends(verify_jwt)):
     except Exception as e:
         return error(500, f"Prediksi gagal: {str(e)}")
 
-    confidence   = round(float(proba.max()), 4)
+    confidence    = round(float(proba.max()), 4)
     probabilities = dict(zip(
         b["classes"],
         [round(float(p), 4) for p in proba]
     ))
 
     result = {
-        "aqi_category":   label,
-        "confidence":     confidence,
-        "probabilities":  probabilities,
-        "zone":           body.zone,
+        "aqi_category":  label,
+        "confidence":    confidence,
+        "probabilities": probabilities,
+        "zone":          body.zone,
     }
 
-    save_prediction("aqi", body.zone,
-                    body.model_dump(), result, confidence)
-
+    save_prediction("aqi", body.zone, body.model_dump(), result, confidence)
     return success(result, "Prediksi AQI berhasil")
 
 
 # POST /api/ml/detect/anomaly
 @app.post("/api/ml/detect/anomaly")
 def detect_anomaly(body: AnomalyIn, _=Depends(verify_jwt)):
-    """
-    Deteksi anomali pembacaan sensor.
-    Input  : sensor_type, value, zone
-    Output : is_anomaly, anomaly_score, severity
-    """
     if "anomaly" not in BUNDLE:
         return error(503, "Anomaly model belum tersedia")
 
-    b    = BUNDLE["anomaly"]
-    hour = datetime.now().hour
-
-    # Rolling mean & z_score — estimasi sederhana
-    rolling_mean = body.value  # tanpa histori, gunakan nilai itu sendiri sebagai baseline
-    z_score      = 0.0         # akan diupdate saat ada histori
+    b            = BUNDLE["anomaly"]
+    hour         = datetime.now().hour
+    rolling_mean = body.value
+    z_score      = 0.0
 
     try:
         X     = b["scaler"].transform([[
@@ -339,13 +324,7 @@ def detect_anomaly(body: AnomalyIn, _=Depends(verify_jwt)):
         return error(500, f"Deteksi gagal: {str(e)}")
 
     is_anomaly = score < -0.1
-
-    if score < -0.3:
-        severity = "Kritis"
-    elif is_anomaly:
-        severity = "Peringatan"
-    else:
-        severity = "Normal"
+    severity   = "Kritis" if score < -0.3 else "Peringatan" if is_anomaly else "Normal"
 
     result = {
         "is_anomaly":    is_anomaly,
@@ -355,19 +334,13 @@ def detect_anomaly(body: AnomalyIn, _=Depends(verify_jwt)):
         "zone":          body.zone,
     }
 
-    save_prediction("anomaly", body.zone,
-                    body.model_dump(), result)
-
+    save_prediction("anomaly", body.zone, body.model_dump(), result)
     return success(result, "Deteksi anomali berhasil")
 
 
 # GET /api/ml/model/feature-importance
 @app.get("/api/ml/model/feature-importance")
 def feature_importance(_=Depends(verify_jwt)):
-    """
-    Bobot fitur penting ketiga model.
-    [GAP PRD — endpoint ini wajib ada]
-    """
     if not BUNDLE:
         return error(503, "Models belum tersedia")
 
@@ -378,13 +351,11 @@ def feature_importance(_=Depends(verify_jwt)):
             "model":    "Random Forest Regressor",
             "features": BUNDLE["traffic"].get("feature_importance", {}),
         }
-
     if "air" in BUNDLE:
         data["air"] = {
             "model":    "Gradient Boosting Classifier",
             "features": BUNDLE["air"].get("feature_importance", {}),
         }
-
     if "anomaly" in BUNDLE:
         data["anomaly"] = {
             "model":    "Isolation Forest",
@@ -401,10 +372,6 @@ def get_predictions(
     limit: int = 50,
     _=Depends(require_operator),
 ):
-    """
-    Riwayat hasil prediksi (operator only).
-    Query params: model_type (opsional), limit (default 50)
-    """
     import json
     conn = get_db()
     if not conn:
@@ -426,7 +393,6 @@ def get_predictions(
             )
         rows = cur.fetchall()
 
-        # Parse JSON fields
         for row in rows:
             if isinstance(row.get("input_data"), str):
                 row["input_data"] = json.loads(row["input_data"])
@@ -446,39 +412,33 @@ def get_predictions(
 # POST /predict/batch
 @app.post("/predict/batch")
 def predict_batch(body: BatchIn, _=Depends(verify_jwt)):
-    """
-    Batch prediction — array input, array output.
-    Setiap item di array bisa punya model_type berbeda.
-    """
     results = []
 
     for i, item in enumerate(body.predictions):
         try:
             if item.model_type == "traffic":
-                traffic_body = TrafficIn(**item.payload)
-                resp = predict_traffic.__wrapped__(traffic_body) \
-                    if hasattr(predict_traffic, "__wrapped__") \
-                    else _predict_traffic_logic(item.payload)
-                results.append({"index": i, "model_type": "traffic",
-                                 "status": "success", "data": resp})
-
+                resp = _predict_traffic_logic(item.payload)
             elif item.model_type == "aqi":
                 resp = _predict_aqi_logic(item.payload)
-                results.append({"index": i, "model_type": "aqi",
-                                 "status": "success", "data": resp})
-
             elif item.model_type == "anomaly":
                 resp = _detect_anomaly_logic(item.payload)
-                results.append({"index": i, "model_type": "anomaly",
-                                 "status": "success", "data": resp})
-
             else:
-                results.append({"index": i, "model_type": item.model_type,
-                                 "status": "error",
-                                 "message": f"model_type tidak dikenal: {item.model_type}"})
+                results.append({
+                    "index": i, "model_type": item.model_type,
+                    "status": "error",
+                    "message": f"model_type tidak dikenal: {item.model_type}"
+                })
+                continue
+
+            results.append({
+                "index": i, "model_type": item.model_type,
+                "status": "success", "data": resp
+            })
         except Exception as e:
-            results.append({"index": i, "model_type": item.model_type,
-                             "status": "error", "message": str(e)})
+            results.append({
+                "index": i, "model_type": item.model_type,
+                "status": "error", "message": str(e)
+            })
 
     return success({"results": results, "count": len(results)},
                    f"Batch prediction selesai: {len(results)} item")
@@ -486,11 +446,11 @@ def predict_batch(body: BatchIn, _=Depends(verify_jwt)):
 
 # Internal helpers untuk batch
 def _predict_traffic_logic(payload: dict) -> dict:
-    b    = BUNDLE["traffic"]
-    zone = payload.get("zone", "A")
+    b        = BUNDLE["traffic"]
+    zone     = payload.get("zone", "A")
     zone_map = {"A": 0, "B": 1, "C": 2, "D": 3}
-    loc  = zone_map.get(str(zone).upper(), 0)
-    X    = b["scaler"].transform([[
+    loc      = zone_map.get(str(zone).upper(), 0)
+    X        = b["scaler"].transform([[
         payload.get("hour", 8),
         payload.get("day_of_week", 1),
         0,

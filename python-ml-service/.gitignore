@@ -14,6 +14,7 @@ build/
 venv/
 env/
 .venv/
+.venv312/
 
 # Environment variables — JANGAN DI-COMMIT
 .env

@@ -1,0 +1,119 @@
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: env-service
+  namespace: smartcity
+  labels:
+    app: env-service
+    role: "4"
+    tier: service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: env-service
+  template:
+    metadata:
+      labels:
+        app: env-service
+        tier: service
+    spec:
+      containers:
+        - name: env-service
+          image: smartcity/php-environment:latest
+          ports:
+            - containerPort: 8002
+          envFrom:
+            - configMapRef:
+                name: smartcity-config
+            - secretRef:
+                name: smartcity-secrets
+          env:
+            # Override khusus environment service
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: smartcity-secrets
+                  key: ENV_DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: smartcity-secrets
+                  key: ENV_DB_PASSWORD
+            - name: DB_NAME
+              value: "smartcity"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8002
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8002
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "300m"
+              memory: "256Mi"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: env-service-svc
+  namespace: smartcity
+  labels:
+    app: env-service
+spec:
+  selector:
+    app: env-service
+  ports:
+    - name: http
+      port: 8002
+      targetPort: 8002
+      protocol: TCP
+  type: ClusterIP
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: smartcity-config
+  namespace: smartcity
+data:
+  DB_HOST: "mysql"
+  DB_PORT: "3306"
+  RABBITMQ_HOST: "rabbitmq"
+  RABBITMQ_PORT: "5672"
+  RABBITMQ_USER: "guest"
+  RABBITMQ_VHOST: "/"
+  API_GATEWAY_URL: "http://api-gateway-svc:3000"
+
+---
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: smartcity-secrets
+  namespace: smartcity
+type: Opaque
+data:
+  # echo -n 'env_user' | base64
+  ENV_DB_USER: ZW52X3VzZXI=
+  # echo -n 'env_secret' | base64
+  ENV_DB_PASSWORD: ZW52X3NlY3JldA==
+  # echo -n 'rootpass' | base64
+  MYSQL_ROOT_PASSWORD: cm9vdHBhc3M=
+  # echo -n 'change_this_jwt_secret_min_32_chars' | base64
+  JWT_SECRET: Y2hhbmdlX3RoaXNfand0X3NlY3JldF9taW5fMzJfY2hhcnM=
