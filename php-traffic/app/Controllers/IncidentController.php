@@ -14,7 +14,6 @@ class IncidentController {
      * Helper internal untuk memvalidasi apakah aktor memiliki klaim role 'operator' di JWT
      */
     private function validateOperatorAccess() {
-        // 1. Ambil seluruh daftar header HTTP request masuk
         $headers = getallheaders();
         $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? null;
 
@@ -22,7 +21,6 @@ class IncidentController {
             $this->sendResponse("error", 401, "Access denied. Token missing from Authorization header");
         }
 
-        // 2. Ekstrak string token dari format "Bearer <token>"
         $parts = explode(" ", $authHeader);
         $token = $parts[1] ?? null;
 
@@ -30,7 +28,6 @@ class IncidentController {
             $this->sendResponse("error", 401, "Access denied. Invalid Authorization bearer format");
         }
 
-        // 3. Pecah struktur struktur JWT (Header.Payload.Signature)
         $tokenParts = explode('.', $token);
         $payloadB64 = $tokenParts[1] ?? null;
 
@@ -38,16 +35,13 @@ class IncidentController {
             $this->sendResponse("error", 400, "Malformed JWT structure");
         }
 
-        // 4. Decode payload base64 ke format teks JSON asli
         $payloadJson = base64_decode(str_replace(['-', '_'], ['+', '/'], $payloadB64));
         $payload = json_decode($payloadJson, true);
 
-        // 5. Periksa hak akses aktor di dalam payload token sesuai aturan PRD
         if (!isset($payload['role']) || $payload['role'] !== 'operator') {
             $this->sendResponse("error", 403, "Access denied. Operator role is required to perform this action");
         }
 
-        // Jika lolos, kembalikan data payload token (bisa digunakan untuk audit user_id nanti)
         return $payload;
     }
 
@@ -55,30 +49,47 @@ class IncidentController {
      * Menangani POST /api/traffic/incidents (Operator Only)
      */
     public function handleCreateIncident() {
-        // Validasi hak akses Operator terdepan sebelum memproses data
+        // Validasi hak akses Operator terdepan
         $this->validateOperatorAccess();
 
         $inputData = json_decode(file_get_contents("php://input"), true);
 
-        // Validasi input
-        if (!isset($inputData['zone']) || !isset($inputData['incident_type']) || !isset($inputData['description'])) {
+        // Validasi input parameter baru (road_name menggantikan zone)
+        if (!isset($inputData['road_name']) || !isset($inputData['incident_type']) || !isset($inputData['description'])) {
             $this->sendResponse("error", 400, "Incomplete incident payload");
         }
 
-        $zone = strtoupper($inputData['zone']);
+        $road_name = $inputData['road_name'];
         $incident_type = $inputData['incident_type'];
         $description = $inputData['description'];
 
-        if (!in_array($zone, ['A', 'B', 'C'])) {
-            $this->sendResponse("error", 400, "Invalid zone. Allowed zones are A, B, or C");
+        // Daftar Standarisasi Road Name berdasarkan Dokumen Lampiran Halaman 1
+        $allowedRoads = [
+            "Gatot Subroto", "Jalan MT Haryono", "Jalan Raya Pasar Minggu", 
+            "Jalan Raya Kalibata", "Jalan Prof Dr Soepomo", "Jalan KH Abdullah Syafei", 
+            "Manggarai", "Cawang"
+        ];
+
+        if (!in_array($road_name, $allowedRoads)) {
+            $this->sendResponse("error", 400, "Invalid road name. Use standardized road names like 'Jalan MT Haryono'");
         }
 
-        $insertedId = $this->incidentModel->create($zone, $incident_type, $description);
+        // Daftar Standarisasi Tipe Insiden berdasarkan Dokumen Lampiran Halaman 1
+        $allowedTypes = [
+            "accident", "broken_vehicle", "fallen_tree", "flood", "road_obstacle", "traffic_light_damage"
+        ];
+
+        if (!in_array($incident_type, $allowedTypes)) {
+            $this->sendResponse("error", 400, "Invalid incident type. Allowed: " . implode(', ', $allowedTypes));
+        }
+
+        $insertedId = $this->incidentModel->create($road_name, $incident_type, $description);
 
         if ($insertedId) {
             $this->sendResponse("success", 201, "Incident recorded successfully by Operator", [
                 "id" => $insertedId,
-                "zone" => $zone,
+                "road_name" => $road_name,
+                "incident_type" => $incident_type,
                 "status" => "active"
             ]);
         } else {
@@ -98,17 +109,14 @@ class IncidentController {
      * Menangani PUT /api/traffic/incidents/{id} (Operator Only)
      */
     public function handleResolveIncident($id) {
-        // Validasi hak akses Operator terdepan sebelum memproses data
         $this->validateOperatorAccess();
 
         $inputData = json_decode(file_get_contents("php://input"), true);
 
-        // Validasi status yang dikirim operator wajib 'resolved' sesuai PRD
         if (!isset($inputData['status']) || $inputData['status'] !== 'resolved') {
             $this->sendResponse("error", 400, "Invalid or missing status. Status must be 'resolved'");
         }
 
-        // Jalankan update status di model
         $updated = $this->incidentModel->updateStatus($id, 'resolved');
 
         if ($updated) {
@@ -120,6 +128,7 @@ class IncidentController {
 
     private function sendResponse($status, $code, $message, $data = null) {
         http_response_code($code);
+        header('Content-Type: application/json');
         echo json_encode([
             "status" => $status,
             "code" => $code,

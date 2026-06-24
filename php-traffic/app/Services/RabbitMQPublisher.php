@@ -32,7 +32,7 @@ class RabbitMQPublisher {
             $connection = new AMQPStreamConnection($this->host, $this->port, $this->user, $this->pass);
             $channel = $connection->channel();
 
-            // 2. Deklarasikan Exchange dengan tipe 'topic' sesuai arsitektur sistem kelompok
+            // 2. Deklarasikan Exchange dengan tipe 'topic' sesuai arsitektur sistem 
             $channel->exchange_declare($exchange, 'topic', false, true, false);
 
             // 3. Konversi payload array menjadi string JSON
