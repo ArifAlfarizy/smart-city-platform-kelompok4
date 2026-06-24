@@ -1,17 +1,16 @@
-```markdown
 # Smart City Platform — Traffic Decision Support Service
 
-[cite_start]Layanan **Traffic Decision Support Service** berbasis **PHP 8.2 Monolithic/MVC Layer** yang bertanggung jawab sebagai *service* utama dalam mengelola, mencatat, dan menyajikan data sensor arus lalu lintas makro secara otomatis pada kawasan Jalan MT Haryono Jakarta[cite: 1, 114, 115]. 
+Layanan **Traffic Decision Support Service** berbasis **PHP 8.2 Monolithic/MVC Layer** yang bertanggung jawab sebagai *service* utama dalam mengelola, mencatat, dan menyajikan data sensor arus lalu lintas makro secara otomatis pada kawasan Jalan MT Haryono Jakarta
 
-[cite_start]Layanan ini menjadi pusat hulu data rekayasa lalu lintas yang mempublikasikan data observasi secara asinkron ke **Python ML Service (Role 5)** melalui message broker RabbitMQ untuk melahirkan prediksi kemacetan otomatis dan rekomendasi keputusan taktis bagi Dinas Perhubungan[cite: 8, 10, 34, 35, 149, 150].
+Layanan ini menjadi pusat hulu data rekayasa lalu lintas yang mempublikasikan data observasi secara asinkron ke **Python ML Service (Role 5)** melalui message broker RabbitMQ untuk melahirkan prediksi kemacetan otomatis dan rekomendasi keputusan taktis bagi Dinas Perhubungan.
 
 ---
 
 ## Tech Stack & Komponen
 - **Language:** PHP 8.2+ (Pure MVC Architecture / No Heavy Framework)
 - **Database:** MySQL (MariaDB) dengan driver PDO (PHP Data Objects)
-- [cite_start]**Message Broker:** RabbitMQ (`php-amqplib`) untuk arsitektur *Event-Driven* [cite: 34]
-- [cite_start]**API Standards:** REST API dengan format respon JSON seragam standar PRD [cite: 240]
+- **Message Broker:** RabbitMQ (`php-amqplib`) untuk arsitektur *Event-Driven*
+- **API Standards:** REST API dengan format respon JSON seragam standar PRD
 
 ---
 
@@ -100,18 +99,10 @@ Semua request dan response wajib menggunakan tipe konten `application/json` deng
 | Method | Endpoint | Akses Aktor | Deskripsi / Fungsi |
 | --- | --- | --- | --- |
 | **GET** | `/api/traffic/health` | Public | Pengecekan status web server & konektivitas DB |
-| **POST** | `/traffic-data` | IoT Gateway / Simulator | Menyimpan data volume & kecepatan lalu lintas terbaru, lalu memicu event ke RabbitMQ 
-
- |
-| **GET** | `/traffic-status` | Dashboard Pemerintah | Mengambil kondisi kepadatan lalu lintas paling mutakhir untuk visualisasi status jalan 
-
- |
-| **GET** | `/traffic-history` | Dashboard / Operator | Menampilkan seluruh rekam jejak log riwayat data sensor lalu lintas 
-
- |
-| **GET** | `/traffic-summary` | Dashboard / Operator | Menyajikan ringkasan agregasi data volume kendaraan harian 
-
- |
+| **POST** | `/traffic-data` | IoT Gateway / Simulator | Menyimpan data volume & kecepatan lalu lintas terbaru, lalu memicu event ke RabbitMQ |
+| **GET** | `/traffic-status` | Dashboard Pemerintah | Mengambil kondisi kepadatan lalu lintas paling mutakhir untuk visualisasi status jalan |
+| **GET** | `/traffic-history` | Dashboard / Operator | Menampilkan seluruh rekam jejak log riwayat data sensor lalu lintas |
+| **GET** | `/traffic-summary` | Dashboard / Operator | Menyajikan ringkasan agregasi data volume kendaraan harian |
 
 ### Contoh Payload POST `/traffic-data`
 
@@ -154,5 +145,3 @@ Setiap kali data lalu lintas baru berhasil disimpan melalui endpoint `POST /traf
 ```
 
 Pesan ini akan dikonsumsi oleh **ML Service (Role 5)** untuk digabungkan dengan data lingkungan dan laporan insiden guna mengekstrak keputusan rekayasa lalu lintas adaptif.
-
-```
