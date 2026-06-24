@@ -12,17 +12,18 @@ class Incident {
     }
 
     /**
-     * Operator mencatat insiden baru manual
+     * Operator mencatat insiden baru secara manual berdasarkan nama jalan standar
      * Digunakan untuk endpoint: POST /api/traffic/incidents
      */
-    public function create($zone, $incident_type, $description) {
+    public function create($road_name, $incident_type, $description) {
+        // Mengganti field 'zone' menjadi 'road_name' sesuai spesifikasi baru
         $query = "INSERT INTO " . $this->table . " 
-                  (zone, incident_type, description, status, created_at) 
-                  VALUES (:zone, :incident_type, :description, 'active', NOW())";
+                  (road_name, incident_type, description, status, created_at) 
+                  VALUES (:road_name, :incident_type, :description, 'active', NOW())";
         
         $stmt = $this->db->prepare($query);
 
-        $stmt->bindParam(':zone', $zone);
+        $stmt->bindParam(':road_name', $road_name);
         $stmt->bindParam(':incident_type', $incident_type);
         $stmt->bindParam(':description', $description);
 
@@ -40,7 +41,7 @@ class Incident {
         $query = "SELECT * FROM " . $this->table . " ORDER BY created_at DESC";
         $stmt = $this->db->prepare($query);
         $stmt->execute();
-        return $stmt->fetchAll();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     /**

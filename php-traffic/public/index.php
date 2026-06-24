@@ -11,7 +11,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-// 1. Fungsi loadEnv agar $_ENV terisi data dari file .env
 function loadEnv($dir) {
     if (!file_exists($dir . '/.env')) return;
     $lines = file($dir . '/.env', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
@@ -24,12 +23,11 @@ function loadEnv($dir) {
 
 loadEnv(dirname(__DIR__));
 
-// 2. Muat file Core Database
 require_once dirname(__DIR__) . '/app/Database.php';
-
-// 3. Muat berkas Model dan Controller versi Smart Traffic DSS Jalan MT Haryono
 require_once dirname(__DIR__) . '/app/Models/TrafficData.php';
 require_once dirname(__DIR__) . '/app/Controllers/TrafficController.php';
+require_once dirname(__DIR__) . '/app/Models/Incident.php';
+require_once dirname(__DIR__) . '/app/Controllers/IncidentController.php';
 
 $requestUri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $requestMethod = $_SERVER['REQUEST_METHOD'];
@@ -78,6 +76,22 @@ elseif (($requestUri === '/traffic-history' || $requestUri === '/api/traffic-his
 elseif (($requestUri === '/traffic-summary' || $requestUri === '/api/traffic-summary') && $requestMethod === 'GET') {
     $trafficController->handleGetTrafficSummary();
 } 
+
+// Rute 5: POST /api/traffic/incidents (Operator mencatat insiden baru)
+elseif ($requestUri === '/api/traffic/incidents' && $requestMethod === 'POST') {
+    $incidentController->handleCreateIncident();
+} 
+
+// Rute 6: GET /api/traffic/incidents (Melihat daftar semua insiden)
+elseif ($requestUri === '/api/traffic/incidents' && $requestMethod === 'GET') {
+    $incidentController->handleGetAllIncidents();
+} 
+
+// Rute 7: PUT /api/traffic/incidents/{id} (Operator mengubah status ke resolved)
+elseif (preg_match('/^\/api\/traffic\/incidents\/([0-9]+)$/', $requestUri, $matches) && $requestMethod === 'PUT') {
+    $incidentId = $matches[1];
+    $incidentController->handleResolveIncident($incidentId);
+}
 
 // Rute Default (404)
 else {

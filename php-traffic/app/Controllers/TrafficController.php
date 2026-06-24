@@ -2,7 +2,7 @@
 // app/Controllers/TrafficController.php
 
 require_once dirname(__DIR__) . '/Models/TrafficData.php';
-require_once dirname(__DIR__) . '/Services/RabbitMQPublisher.php'; // Path ke publisher lamamu
+require_once dirname(__DIR__) . '/Services/RabbitMQPublisher.php';
 
 class TrafficController {
     private $trafficModel;
@@ -30,6 +30,17 @@ class TrafficController {
         $congestion_level = $inputData['congestion_level']; // Normal, Padat, Macet, Sangat Macet
         $observation_time = $inputData['observation_time'];
 
+        // Tambahan Validasi: Standarisasi Road Name
+        $allowedRoads = [
+            "Gatot Subroto", "Jalan MT Haryono", "Jalan Raya Pasar Minggu", 
+            "Jalan Raya Kalibata", "Jalan Prof Dr Soepomo", "Jalan KH Abdullah Syafei", 
+            "Manggarai", "Cawang"
+        ];
+
+        if (!in_array($road_name, $allowedRoads)) {
+            $this->sendResponse("error", 400, "Invalid road name. Use standardized road names like 'Jalan MT Haryono'");
+        }
+
         // 1. Simpan ke database lokal
         $insertedId = $this->trafficModel->create($road_name, $vehicle_count, $average_speed, $congestion_level, $observation_time);
 
@@ -38,20 +49,28 @@ class TrafficController {
             // 2. Kirim Event ke RabbitMQ dengan routing key 'traffic.updated'
             $publisher = new RabbitMQPublisher();
 
+            // Disesuaikan agar bersih mengikuti spesifikasi payload minimal ML Consumer di Skema (1).pdf
             $rabbitPayload = [
-                "id" => (int)$insertedId,
-                "road_name" => $road_name,
-                "vehicle_count" => (int)$vehicle_count,
-                "average_speed" => $average_speed,
+                "road_name"        => $road_name,
+                "vehicle_count"    => (int)$vehicle_count,
+                "average_speed"    => $average_speed,
+                "observation_time" => $observation_time
+            ];
+
+            // Mempublikasikan event 'traffic.updated'
+            $publisher->publishEvent('traffic.updated', $rabbitPayload);
+            
+            // 3. Beri respons sukses ke client / simulator IoT
+            $localResponse = [
+                "id"               => (int)$insertedId,
+                "road_name"        => $road_name,
+                "vehicle_count"    => (int)$vehicle_count,
+                "average_speed"    => $average_speed,
                 "congestion_level" => $congestion_level,
                 "observation_time" => $observation_time
             ];
 
-            // Sesuai PRD Bab 10: mempublikasikan event 'traffic.updated'
-            $publisher->publishEvent('traffic.updated', $rabbitPayload);
-            
-            // 3. Beri respons sukses ke client / simulator IoT
-            $this->sendResponse("success", 201, "Traffic data recorded and event published successfully", $rabbitPayload);
+            $this->sendResponse("success", 201, "Traffic data recorded and event published successfully", $localResponse);
         } else {
             $this->sendResponse("error", 500, "Failed to record traffic data to database");
         }
