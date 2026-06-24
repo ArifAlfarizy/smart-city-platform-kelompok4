@@ -59,27 +59,25 @@ CREATE TABLE revoked_tokens (
   revoked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Tabel traffic_data
-CREATE TABLE traffic_data (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    road_name VARCHAR(100) NOT NULL DEFAULT 'Jalan MT Haryono',
-    vehicle_count INT NOT NULL,
-    average_speed DECIMAL(5,2) NOT NULL,
-    congestion_level VARCHAR(20) NOT NULL,
-    observation_time TIMESTAMP NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS traffic_data (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  road_name VARCHAR(100) NOT NULL,
+  vehicle_count INT NOT NULL,
+  average_speed DECIMAL(5,2) NOT NULL,
+  congestion_level ENUM('Normal', 'Padat', 'Macet', 'Sangat Macet') NOT NULL,
+  observation_time TIMESTAMP NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
--- Tabel incidents
 CREATE TABLE IF NOT EXISTS incidents (
-  id            INT AUTO_INCREMENT PRIMARY KEY,
-  zone          ENUM('A', 'B', 'C') NOT NULL,
-  incident_type VARCHAR(100) NOT NULL,
-  description   TEXT NOT NULL,
-  status        ENUM('active', 'resolved') NOT NULL DEFAULT 'active',
-  created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_incidents_zone (zone),
-  INDEX idx_incidents_status (status)
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  road_name VARCHAR(100) NOT NULL,
+  incident_type ENUM('accident', 'broken_vehicle', 'fallen_tree', 'flood', 'road_obstacle', 'traffic_light_damage') NOT NULL,
+  description TEXT NOT NULL,
+  status ENUM('active', 'resolved') NOT NULL DEFAULT 'active',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_road_name (road_name),
+  INDEX idx_status (status)
 );
 
 CREATE TABLE IF NOT EXISTS zones (
