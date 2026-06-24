@@ -55,8 +55,7 @@ class EnvironmentController
             'flood_status' => $flood_status,
         ]);
 
-        // Publish ke RabbitMQ → water.updated
-        $this->publisher->publish('water.updated', [
+        $this->publisher->publish('environment.updated', [
             'sensor_id'    => $record['sensor_id'],
             'rainfall'     => (float)$record['rainfall'],
             'water_level'  => (float)$record['water_level'],
