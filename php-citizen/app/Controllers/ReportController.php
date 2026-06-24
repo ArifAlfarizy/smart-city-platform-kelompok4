@@ -4,6 +4,7 @@ namespace App\Controllers;
 
 use App\Models\CitizenModel;
 use App\Models\ReportModel;
+use App\Services\RabbitMQPublisher;
 
 class ReportController extends BaseController
 {
@@ -85,7 +86,27 @@ class ReportController extends BaseController
 
         $model->insert($data);
 
-        return $this->jsonSuccess($data, 'Report berhasil dibuat.', 201);
+        $reportId = $model->getInsertID();
+
+        $eventPayload = [
+            'incident_id' => $reportId,
+            'category'    => $category,
+            'road_name'   => $roadName,
+            'description' => $description,
+        ];
+
+        $publisher = new RabbitMQPublisher();
+
+        $published = $publisher->publish(
+            'incident.created',
+            $eventPayload
+        );
+
+        return $this->jsonSuccess([
+            'report_id' => $reportId,
+            'rabbitmq'  => $published,
+            'event'     => 'incident.created'
+        ], 'Report berhasil dibuat.', 201);
     }
 
     public function myReports()
