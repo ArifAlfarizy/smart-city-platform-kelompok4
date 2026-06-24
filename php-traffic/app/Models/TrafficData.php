@@ -12,21 +12,20 @@ class TrafficData {
     }
 
     /**
-     * Menyimpan data sensor lalu lintas baru ke database
+     * Menyimpan data sensor lalu lintas baru ke database (Spesifikasi Baru)
      */
-    public function create($sensor_id, $zone, $vehicle_count, $avg_speed, $congestion_level) {
+    public function create($road_name, $vehicle_count, $avg_speed, $congestion_level, $observation_time) {
         $query = "INSERT INTO " . $this->table . " 
-                  (sensor_id, zone, vehicle_count, avg_speed, congestion_level, recorded_at) 
-                  VALUES (:sensor_id, :zone, :vehicle_count, :avg_speed, :congestion_level, NOW())";
+                  (road_name, vehicle_count, average_speed, congestion_level, observation_time) 
+                  VALUES (:road_name, :vehicle_count, :average_speed, :congestion_level, :observation_time)";
         
         $stmt = $this->db->prepare($query);
 
-        // Bind parameters untuk mencegah SQL Injection
-        $stmt->bindParam(':sensor_id', $sensor_id);
-        $stmt->bindParam(':zone', $zone);
+        $stmt->bindParam(':road_name', $road_name);
         $stmt->bindParam(':vehicle_count', $vehicle_count, PDO::PARAM_INT);
-        $stmt->bindParam(':avg_speed', $avg_speed);
-        $stmt->bindParam(':congestion_level', $congestion_level, PDO::PARAM_INT);
+        $stmt->bindParam(':average_speed', $avg_speed);
+        $stmt->bindParam(':congestion_level', $congestion_level); // String: Normal, Padat, Macet, Sangat Macet
+        $stmt->bindParam(':observation_time', $observation_time);
 
         if ($stmt->execute()) {
             return $this->db->lastInsertId();
@@ -35,39 +34,37 @@ class TrafficData {
     }
 
     /**
-     * Mengambil data kondisi lalu lintas paling terbaru untuk semua zona atau per zona
-     * Digunakan untuk endpoint: GET /api/traffic/current
+     * Mengambil data kondisi lalu lintas paling terbaru untuk dashboard (GET /traffic-status)
      */
-    public function getCurrentStatus() {
-        // Query untuk mengambil baris terakhir dari masing-masing zona (A, B, C)
-        $query = "SELECT t1.* FROM " . $this->table . " t1
-                  INNER JOIN (
-                      SELECT zone, MAX(recorded_at) as max_recorded 
-                      FROM " . $this->table . " 
-                      GROUP BY zone
-                  ) t2 ON t1.zone = t2.zone AND t1.recorded_at = t2.max_recorded
-                  ORDER BY t1.zone ASC";
-
+    public function getLatestStatus() {
+        $query = "SELECT * FROM " . $this->table . " ORDER BY observation_time DESC LIMIT 1";
         $stmt = $this->db->prepare($query);
         $stmt->execute();
-        return $stmt->fetchAll();
+        return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
     /**
-     * Mengambil riwayat data traffic berdasarkan zona tertentu
-     * Digunakan untuk endpoint: GET /api/traffic/zones/{zone}
+     * Mengambil seluruh riwayat log sensor data lalu lintas (GET /traffic-history)
      */
-    public function getHistoryByZone($zone, $limit = 50) {
-        $query = "SELECT * FROM " . $this->table . " 
-                  WHERE zone = :zone 
-                  ORDER BY recorded_at DESC 
-                  LIMIT :limit";
-
+    public function getHistory() {
+        $query = "SELECT * FROM " . $this->table . " ORDER BY observation_time DESC";
         $stmt = $this->db->prepare($query);
-        $stmt->bindParam(':zone', $zone);
-        $stmt->bindParam(':limit', $limit, PDO::PARAM_INT);
-        
         $stmt->execute();
-        return $stmt->fetchAll();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Menyajikan ringkasan data lalu lintas harian (GET /traffic-summary)
+     */
+    public function getSummary() {
+        $query = "SELECT road_name, DATE(observation_time) as date, 
+                         SUM(vehicle_count) as total_vehicles, 
+                         AVG(average_speed) as avg_speed_all 
+                  FROM " . $this->table . " 
+                  GROUP BY road_name, DATE(observation_time)
+                  ORDER BY date DESC";
+        $stmt = $this->db->prepare($query);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 }

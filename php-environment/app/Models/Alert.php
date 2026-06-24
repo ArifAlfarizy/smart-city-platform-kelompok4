@@ -11,6 +11,10 @@ class Alert
         $this->db = Database::getConnection();
     }
 
+    private const VALID_TYPES = [
+        'AQI_HIGH', 'FLOOD_HIGH', 'TEMP_EXTREME', 'HUMIDITY_EXTREME', 'RAIN_HEAVY'
+    ];
+
     public function createIfNotExists(array $data): ?array
     {
         $check = $this->db->prepare('

@@ -45,40 +45,28 @@
       "left": 595,
       "attrs": { "label": "Rain Intensity (mm/h)", "value": "0.1" }
     },
-    {
-      "type": "wokwi-ir-receiver",
-      "id": "ir_recv",
-      "top": -76.5,
-      "left": 710,
-      "attrs": {}
-    },
-    {
-      "type": "wokwi-ir-remote",
-      "id": "ir_remote",
-      "top": 100,
-      "left": 710,
-      "attrs": {}
-    }
+    { "type": "wokwi-ir-receiver", "id": "ir_recv",   "top": -76.5, "left": 710, "attrs": {} },
+    { "type": "wokwi-ir-remote",   "id": "ir_remote", "top": 316.8, "left": 201.6, "attrs": {} }
   ],
   "connections": [
-    [ "esp:3V3", "dht1:VCC", "red", [] ],
-    [ "esp:GND.1", "dht1:GND", "black", [] ],
-    [ "esp:D15", "dht1:SDA", "green", [] ],
-    [ "esp:3V3", "pot_aqi:VCC", "red", [] ],
-    [ "esp:GND.2", "pot_aqi:GND", "black", [] ],
-    [ "esp:D34", "pot_aqi:SIG", "orange", [] ],
-    [ "esp:3V3", "pot_flood:VCC", "red", [] ],
-    [ "esp:GND.2", "pot_flood:GND", "black", [] ],
-    [ "esp:D35", "pot_flood:SIG", "blue", [] ],
-    [ "esp:3V3", "pot_rain:VCC", "red", [] ],
-    [ "esp:GND.2", "pot_rain:GND", "black", [] ],
-    [ "esp:D32", "pot_rain:SIG", "purple", [] ],
-    [ "esp:3V3", "pot_rain_intensity:VCC", "red", [] ],
-    [ "esp:GND.2", "pot_rain_intensity:GND", "black", [] ],
-    [ "esp:D33", "pot_rain_intensity:SIG", "cyan", [] ],
-    [ "esp:3V3", "ir_recv:VCC", "red", [] ],
-    [ "esp:GND.2", "ir_recv:GND", "black", [] ],
-    [ "esp:D19", "ir_recv:DAT", "yellow", [] ]
+    [ "esp:3V3",   "dht1:VCC",              "red",    [] ],
+    [ "esp:GND.1", "dht1:GND",              "black",  [] ],
+    [ "esp:D15",   "dht1:SDA",              "green",  [] ],
+    [ "esp:3V3",   "pot_aqi:VCC",           "red",    [] ],
+    [ "esp:GND.2", "pot_aqi:GND",           "black",  [] ],
+    [ "esp:D34",   "pot_aqi:SIG",           "orange", [] ],
+    [ "esp:3V3",   "pot_flood:VCC",         "red",    [] ],
+    [ "esp:GND.2", "pot_flood:GND",         "black",  [] ],
+    [ "esp:D35",   "pot_flood:SIG",         "blue",   [] ],
+    [ "esp:3V3",   "pot_rain:VCC",          "red",    [] ],
+    [ "esp:GND.2", "pot_rain:GND",          "black",  [] ],
+    [ "esp:D32",   "pot_rain:SIG",          "purple", [] ],
+    [ "esp:3V3",   "pot_rain_intensity:VCC","red",    [] ],
+    [ "esp:GND.2", "pot_rain_intensity:GND","black",  [] ],
+    [ "esp:D33",   "pot_rain_intensity:SIG","cyan",   [] ],
+    [ "esp:3V3",   "ir_recv:VCC",           "red",    [] ],
+    [ "esp:GND.2", "ir_recv:GND",           "black",  [] ],
+    [ "esp:D19",   "ir_recv:DAT",           "yellow", [] ]
   ],
   "dependencies": {}
 }

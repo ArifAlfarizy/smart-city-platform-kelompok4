@@ -11,9 +11,53 @@ class IncidentController {
     }
 
     /**
+     * Helper internal untuk memvalidasi apakah aktor memiliki klaim role 'operator' di JWT
+     */
+    private function validateOperatorAccess() {
+        // 1. Ambil seluruh daftar header HTTP request masuk
+        $headers = getallheaders();
+        $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? null;
+
+        if (!$authHeader) {
+            $this->sendResponse("error", 401, "Access denied. Token missing from Authorization header");
+        }
+
+        // 2. Ekstrak string token dari format "Bearer <token>"
+        $parts = explode(" ", $authHeader);
+        $token = $parts[1] ?? null;
+
+        if (!$token) {
+            $this->sendResponse("error", 401, "Access denied. Invalid Authorization bearer format");
+        }
+
+        // 3. Pecah struktur struktur JWT (Header.Payload.Signature)
+        $tokenParts = explode('.', $token);
+        $payloadB64 = $tokenParts[1] ?? null;
+
+        if (!$payloadB64) {
+            $this->sendResponse("error", 400, "Malformed JWT structure");
+        }
+
+        // 4. Decode payload base64 ke format teks JSON asli
+        $payloadJson = base64_decode(str_replace(['-', '_'], ['+', '/'], $payloadB64));
+        $payload = json_decode($payloadJson, true);
+
+        // 5. Periksa hak akses aktor di dalam payload token sesuai aturan PRD
+        if (!isset($payload['role']) || $payload['role'] !== 'operator') {
+            $this->sendResponse("error", 403, "Access denied. Operator role is required to perform this action");
+        }
+
+        // Jika lolos, kembalikan data payload token (bisa digunakan untuk audit user_id nanti)
+        return $payload;
+    }
+
+    /**
      * Menangani POST /api/traffic/incidents (Operator Only)
      */
     public function handleCreateIncident() {
+        // Validasi hak akses Operator terdepan sebelum memproses data
+        $this->validateOperatorAccess();
+
         $inputData = json_decode(file_get_contents("php://input"), true);
 
         // Validasi input
@@ -54,6 +98,9 @@ class IncidentController {
      * Menangani PUT /api/traffic/incidents/{id} (Operator Only)
      */
     public function handleResolveIncident($id) {
+        // Validasi hak akses Operator terdepan sebelum memproses data
+        $this->validateOperatorAccess();
+
         $inputData = json_decode(file_get_contents("php://input"), true);
 
         // Validasi status yang dikirim operator wajib 'resolved' sesuai PRD

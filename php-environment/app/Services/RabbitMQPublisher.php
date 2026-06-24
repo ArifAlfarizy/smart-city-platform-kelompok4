@@ -25,7 +25,7 @@ class RabbitMQPublisher
     }
 
     /**
-     *
+     * Publish satu event ke exchange city.events
      *
      * @param string $routingKey  Contoh: 'environment.sensor.received'
      * @param array  $payload     Data yang akan dikirim sebagai JSON
@@ -43,12 +43,13 @@ class RabbitMQPublisher
 
             $channel = $connection->channel();
 
+            // Deklarasi exchange (topic, durable — konsisten dengan consumer Python ML)
             $channel->exchange_declare(
                 $this->exchange,
                 'topic',
-                false,
-                true,
-                false
+                false,   // passive
+                true,    // durable
+                false    // auto-delete
             );
 
             $body = json_encode(array_merge($payload, [
@@ -70,6 +71,7 @@ class RabbitMQPublisher
             error_log("[RabbitMQ] Published '{$routingKey}' → {$body}");
 
         } catch (\Exception $e) {
+            // Jangan crash service hanya karena RabbitMQ down
             error_log("[RabbitMQ ERROR] {$e->getMessage()}");
         }
     }

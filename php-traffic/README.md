@@ -1,8 +1,8 @@
-# Smart City Platform — Traffic & Incident Service
+# Smart City Platform — Traffic Decision Support Service
 
-Layanan **Traffic & Incident Service** berbasis **PHP 8.2 Monolithic/MVC Layer** yang bertanggung jawab penuh untuk mengelola pencatatan data sensor lalu lintas otomatis (*IoT Gateway/Node-RED*) serta manajemen pelaporan insiden jalan raya secara manual oleh Operator Kota.
+Layanan **Traffic Decision Support Service** berbasis **PHP 8.2 Monolithic/MVC Layer** yang bertanggung jawab sebagai *service* utama dalam mengelola, mencatat, dan menyajikan data sensor arus lalu lintas makro secara otomatis pada kawasan Jalan MT Haryono Jakarta
 
-Layanan ini terintegrasi secara asinkron dengan **Python ML Service** melalui message broker RabbitMQ untuk memicu kalkulasi prediksi kepadatan kota secara real-time.
+Layanan ini menjadi pusat hulu data rekayasa lalu lintas yang mempublikasikan data observasi secara asinkron ke **Python ML Service (Role 5)** melalui message broker RabbitMQ untuk melahirkan prediksi kemacetan otomatis dan rekomendasi keputusan taktis bagi Dinas Perhubungan.
 
 ---
 
@@ -19,14 +19,14 @@ Layanan ini terintegrasi secara asinkron dengan **Python ML Service** melalui me
 php-traffic/
 ├── app/
 │   ├── Controllers/      # Logika Bisnis & Validasi Payload API
-│   │   ├── IncidentController.php
 │   │   └── TrafficController.php
-│   ├── Models/           # Query SQL aman (Prepared Statements)
-│   │   ├── Incident.php
+│   ├── Models/           # Query SQL aman (Prepared Statements via PDO)
 │   │   └── TrafficData.php
-│   ├── Services/         # Integrasi Pihak Ketiga (Asinkron)
+│   ├── Services/         # Integrasi Pihak Ketiga (Asinkron Broker)
 │   │   └── RabbitMQPublisher.php
 │   └── Database.php      # Singleton Connection Wrapper (PDO)
+├── database/
+│   └── schema.sql        # Script DDL Pembuatan Tabel `traffic_data`
 ├── public/
 │   └── index.php         # Front Controller / Routing Gate Utama
 ├── vendor/               # Dependensi Composer (php-amqplib)
@@ -46,7 +46,9 @@ Pastikan perangkat kamu sudah mengaktifkan:
 * XAMPP / Laragon (PHP 8.2+ & MySQL)
 * Extension `sockets` pada `php.ini` harus diaktifkan (Hapus tanda `;` pada `;extension=sockets`)
 * Composer terinstal di sistem
-* Docker Desktop (Untuk menjalankan container RabbitMQ)
+* Docker Desktop (Untuk menjalankan container RabbitMQ) 
+
+
 
 ### 2. Setup Environment (`.env`)
 
@@ -92,57 +94,54 @@ php -S localhost:8001 -t public/
 
 ## Dokumentasi Endpoint REST API
 
-Semua request dan response wajib menggunakan tipe konten `application/json` dengan format standardisasi PRD.
+Semua request dan response wajib menggunakan tipe konten `application/json` dengan format standardisasi perusahaan. Endpoint mendukung pemanggilan langsung maupun melalui API Gateway (`/api/...`).
 
 | Method | Endpoint | Akses Aktor | Deskripsi / Fungsi |
 | --- | --- | --- | --- |
 | **GET** | `/api/traffic/health` | Public | Pengecekan status web server & konektivitas DB |
-| **POST** | `/api/traffic/sensor` | IoT Gateway | Menyimpan data sensor riil & publish ke RabbitMQ |
-| **GET** | `/api/traffic/current` | Citizen / Op | Mengambil status kepadatan paling terupdate per zona |
-| **GET** | `/api/traffic/zones/{zone}` | Citizen / Op | Menampilkan riwayat log sensor berdasarkan zona (A/B/C) |
-| **POST** | `/api/traffic/incidents` | Operator Only | Mencatat pelaporan insiden/kecelakaan jalan raya baru |
-| **GET** | `/api/traffic/incidents` | Protected | Melihat daftar seluruh rekam jejak insiden kota |
-| **PUT** | `/api/traffic/incidents/{id}` | Operator Only | Memperbarui status penanganan insiden ke `resolved` |
+| **POST** | `/traffic-data` | IoT Gateway / Simulator | Menyimpan data volume & kecepatan lalu lintas terbaru, lalu memicu event ke RabbitMQ |
+| **GET** | `/traffic-status` | Dashboard Pemerintah | Mengambil kondisi kepadatan lalu lintas paling mutakhir untuk visualisasi status jalan |
+| **GET** | `/traffic-history` | Dashboard / Operator | Menampilkan seluruh rekam jejak log riwayat data sensor lalu lintas |
+| **GET** | `/traffic-summary` | Dashboard / Operator | Menyajikan ringkasan agregasi data volume kendaraan harian |
 
-### Contoh Payload POST `/api/traffic/sensor`
+### Contoh Payload POST `/traffic-data`
 
 ```json
 {
-  "sensor_id": "SENSOR-B-04",
-  "zone": "B",
-  "vehicle_count": 42,
-  "avg_speed": 48.5,
-  "congestion_level": 3
+  "road_name": "Jalan MT Haryono",
+  "vehicle_count": 145,
+  "average_speed": 18.50,
+  "congestion_level": "Macet",
+  "observation_time": "2026-06-24 11:45:00"
 }
 
 ```
 
-### Contoh Payload POST `/api/traffic/incidents`
-
-```json
-{
-  "zone": "B",
-  "incident_type": "Kecelakaan",
-  "description": "Tabrakan beruntun melibatkan 3 kendaraan di jalur tengah."
-}
-
-```
+Catatan: Nilai `congestion_level` wajib berupa string klasifikasi kondisi jalan: `Normal`, `Padat`, `Macet`, atau `Sangat Macet`.
 
 ---
 
 ## Skema Event-Driven Message (RabbitMQ)
 
-Setiap kali endpoint `POST /api/traffic/sensor` sukses menerima kiriman data dari Node-RED, service ini akan mempublikasikan pesan asinkron ke layanan **ML Service** dengan spesifikasi berikut:
+Setiap kali data lalu lintas baru berhasil disimpan melalui endpoint `POST /traffic-data`, service ini secara otomatis akan mempublikasikan pesan asinkron ke exchange broker kelompok:
 
 * **Exchange:** `city.events` (Type: `topic`)
-* **Routing Key:** `traffic.sensor.received`
+* 
+**Routing Key:** `traffic.updated` 
+
+
 * **Payload Format (JSON):**
+
 ```json
 {
-  "zone": "B",
-  "vehicle_count": 42.0,
-  "avg_speed": 48.5,
-  "incident": 0
+  "id": 1,
+  "road_name": "Jalan MT Haryono",
+  "vehicle_count": 145,
+  "average_speed": 18.50,
+  "congestion_level": "Macet",
+  "observation_time": "2026-06-24 11:45:00"
 }
 
 ```
+
+Pesan ini akan dikonsumsi oleh **ML Service (Role 5)** untuk digabungkan dengan data lingkungan dan laporan insiden guna mengekstrak keputusan rekayasa lalu lintas adaptif.
