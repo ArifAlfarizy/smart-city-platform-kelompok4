@@ -1,15 +1,3 @@
--- Tambahkan di database/schema.sql
-CREATE TABLE IF NOT EXISTS ml_predictions (
-    id               INT AUTO_INCREMENT PRIMARY KEY,
-    model_type       ENUM('traffic', 'aqi', 'anomaly') NOT NULL,
-    zone             VARCHAR(10)  DEFAULT NULL,
-    input_data       JSON         NOT NULL,
-    result           JSON         NOT NULL,
-    confidence_score DECIMAL(5,2) DEFAULT NULL,
-    created_at       TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_model_type (model_type),
-    INDEX idx_created_at (created_at)
-);
 -- MySQL Database Schema
 CREATE DATABASE IF NOT EXISTS smartcity;
 USE smartcity;
@@ -160,3 +148,17 @@ INSERT INTO environment_alerts (zone, alert_type, value, threshold, message, sev
     ('B', 'AQI_HIGH',   '110.3', '100', 'AQI melebihi batas aman di Zona B. Warga disarankan menggunakan masker.', 'WARNING',  'active'),
     ('B', 'FLOOD_HIGH', '52.0',  '50',  'Ketinggian air mencapai 52 cm di Zona B. Potensi banjir tinggi.',         'CRITICAL', 'active'),
     ('C', 'AQI_HIGH',   '130.7', '100', 'AQI sangat buruk di Zona C. Hindari aktivitas luar ruangan.',             'CRITICAL', 'active');
+
+-- Tabel untuk hasil analisis ML
+CREATE TABLE IF NOT EXISTS ml_predictions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    model_type VARCHAR(50) NOT NULL DEFAULT 'congestion',
+    zone VARCHAR(100) DEFAULT 'MT_Haryono',
+    input_data JSON NOT NULL
+    result JSON NOT NULL,
+    confidence_score DECIMAL(5,4) DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_model_type (model_type),
+    INDEX idx_created_at (created_at),
+    INDEX idx_zone (zone)
+);
