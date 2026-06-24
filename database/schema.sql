@@ -1,15 +1,3 @@
--- Tambahkan di database/schema.sql
-CREATE TABLE IF NOT EXISTS ml_predictions (
-    id               INT AUTO_INCREMENT PRIMARY KEY,
-    model_type       ENUM('traffic', 'aqi', 'anomaly') NOT NULL,
-    zone             VARCHAR(10)  DEFAULT NULL,
-    input_data       JSON         NOT NULL,
-    result           JSON         NOT NULL,
-    confidence_score DECIMAL(5,2) DEFAULT NULL,
-    created_at       TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_model_type (model_type),
-    INDEX idx_created_at (created_at)
-);
 -- MySQL Database Schema
 CREATE DATABASE IF NOT EXISTS smartcity;
 USE smartcity;
@@ -32,12 +20,12 @@ CREATE TABLE users (
   INDEX idx_role  (role)
 );
 
--- Client credentaials (IoT)
+-- Client credentials (IoT)
 CREATE TABLE oauth_clients(
   id            INT AUTO_INCREMENT PRIMARY KEY,
   client_id     VARCHAR(100) NOT NULL UNIQUE,
   client_secret VARCHAR(255) NOT NULL,
-  grant_types   VARCHAR(255),  -- "password,client_credentials,refresh_token"
+  grant_types   VARCHAR(255),
   created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -161,3 +149,35 @@ CREATE TABLE IF NOT EXISTS environment_alerts (
     INDEX idx_alert_type    (alert_type),
     INDEX idx_zone_status   (zone, status)
 ) ENGINE=InnoDB COMMENT='Alert otomatis berdasarkan pembacaan sensor';
+
+-- Seed: dummy data
+INSERT INTO environment_data 
+    (sensor_id, zone, aqi, temperature, humidity, flood_level, pm25, pm10, no2, co, o3)
+VALUES
+    ('ESP32-A-01', 'A', 85.5,  31.2, 72.1, 5.0,   35.2, 48.1, 42.3, 1.2, 55.0),
+    ('ESP32-A-01', 'A', 92.0,  32.0, 74.5, 6.5,   40.1, 55.0, 45.0, 1.5, 60.0),
+    ('ESP32-B-01', 'B', 110.3, 33.5, 80.0, 52.0,  55.0, 72.0, 62.0, 2.1, 70.0),
+    ('ESP32-B-01', 'B', 75.2,  30.0, 68.3, 10.0,  28.3, 39.5, 35.0, 0.9, 45.0),
+    ('ESP32-C-01', 'C', 60.1,  29.5, 65.0, 3.0,   22.1, 30.5, 28.0, 0.7, 38.0),
+    ('ESP32-C-01', 'C', 130.7, 35.0, 88.0, 75.0,  68.0, 90.0, 80.0, 3.0, 95.0),
+    ('ESP32-D-01', 'D', 95.0,  31.8, 75.5, 20.0,  42.0, 58.0, 48.0, 1.6, 62.0),
+    ('ESP32-E-01', 'E', 55.0,  28.5, 60.0, 0.0,   18.0, 25.0, 22.0, 0.5, 30.0);
+
+INSERT INTO environment_alerts (zone, alert_type, value, threshold, message, severity, status) VALUES
+    ('B', 'AQI_HIGH',   '110.3', '100', 'AQI melebihi batas aman di Zona B. Warga disarankan menggunakan masker.', 'WARNING',  'active'),
+    ('B', 'FLOOD_HIGH', '52.0',  '50',  'Ketinggian air mencapai 52 cm di Zona B. Potensi banjir tinggi.',         'CRITICAL', 'active'),
+    ('C', 'AQI_HIGH',   '130.7', '100', 'AQI sangat buruk di Zona C. Hindari aktivitas luar ruangan.',             'CRITICAL', 'active');
+
+-- Tabel untuk hasil analisis ML
+CREATE TABLE IF NOT EXISTS ml_predictions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    model_type VARCHAR(50) NOT NULL DEFAULT 'congestion',
+    zone VARCHAR(100) DEFAULT 'MT_Haryono',
+    input_data JSON NOT NULL,
+    result JSON NOT NULL,
+    confidence_score DECIMAL(5,4) DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_model_type (model_type),
+    INDEX idx_created_at (created_at),
+    INDEX idx_zone (zone)
+);
