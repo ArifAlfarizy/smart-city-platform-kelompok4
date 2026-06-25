@@ -1,32 +1,6 @@
-# docker-compose.yml — Smart City Environment Service (Slim 4)
-version: '3.8'
+version: "3.8"
 
 services:
-
-  environment-service:
-    build:
-      context: ./php-environment
-      dockerfile: Dockerfile
-    container_name: environment-service
-    ports:
-      - "8002:8002"
-    env_file:
-      - ./php-environment/.env
-    depends_on:
-      mysql_db:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 20s
-    networks:
-      - smartcity-net
-    restart: unless-stopped
-
   mysql_db:
     image: mysql:8.0
     container_name: mysql_db
@@ -39,9 +13,21 @@ services:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./database/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uenv_user", "-penv_secret"]
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost",
+          "-u",
+          "env_user",
+          "-p",
+          "env_secret",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -78,24 +64,253 @@ services:
       - smartcity-net
     restart: unless-stopped
 
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+    container_name: auth-service
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: 3001
+      DB_HOST: mysql_db
+      DB_PORT: 3306
+      DB_USER: env_user
+      DB_PASSWORD: env_secret
+      DB_NAME: smartcity
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-accessrahasia_super_secret_min_32_chars}
+      JWT_ACCESS_EXPIRES_IN: 3600
+      SALT_ROUNDS: 10
+    depends_on:
+      mysql_db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://localhost:3001/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - smartcity-net
+    restart: unless-stopped
+
+  api-gateway:
+    build:
+      context: ./express-gateway
+      dockerfile: Dockerfile
+    container_name: api-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      AUTH_SERVICE_URL: http://auth-service:3001
+      TRAFFIC_SERVICE_URL: http://traffic-service:8001
+      ENVIRONMENT_SERVICE_URL: http://environment-service:8002
+      CITIZEN_SERVICE_URL: http://citizen-service:8080
+      ML_SERVICE_URL: http://python-ml:5000
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-accessrahasia_super_secret_min_32_chars}
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      environment-service:
+        condition: service_healthy
+      traffic-service:
+        condition: service_healthy
+      citizen-service:
+        condition: service_healthy
+      python-ml:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - smartcity-net
+    restart: unless-stopped
+
+  # ============================================
+  # ENVIRONMENT SERVICE (PHP Slim)
+  # ============================================
+
+  environment-service:
+    build:
+      context: ./php-environment
+      dockerfile: Dockerfile
+    container_name: environment-service
+    ports:
+      - "8002:8002"
+    environment:
+      DB_HOST: mysql_db
+      DB_PORT: 3306
+      DB_NAME: smartcity
+      DB_USER: env_user
+      DB_PASSWORD: env_secret
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: guest
+      RABBITMQ_PASSWORD: guest
+      RABBITMQ_VHOST: /
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-accessrahasia_super_secret_min_32_chars}
+      APP_ENV: production
+      APP_DEBUG: "false"
+    depends_on:
+      mysql_db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    networks:
+      - smartcity-net
+    restart: unless-stopped
+
+  traffic-service:
+    build:
+      context: ./php-traffic
+      dockerfile: Dockerfile
+    container_name: traffic-service
+    ports:
+      - "8001:8001"
+    environment:
+      DB_HOST: mysql_db
+      DB_PORT: 3306
+      DB_NAME: smartcity
+      DB_USER: env_user
+      DB_PASSWORD: env_secret
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: guest
+      RABBITMQ_PASSWORD: guest
+    depends_on:
+      mysql_db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/api/traffic/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - smartcity-net
+    restart: unless-stopped
+
+  traffic-worker:
+    build:
+      context: ./php-traffic
+      dockerfile: Dockerfile
+    container_name: traffic-worker
+    environment:
+      DB_HOST: mysql_db
+      DB_PORT: 3306
+      DB_NAME: smartcity
+      DB_USER: env_user
+      DB_PASSWORD: env_secret
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: guest
+      RABBITMQ_PASSWORD: guest
+    depends_on:
+      mysql_db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    command: php worker.php
+    networks:
+      - smartcity-net
+    restart: unless-stopped
+
+  citizen-service:
+    build:
+      context: ./php-citizen
+      dockerfile: Dockerfile
+    container_name: citizen-service
+    ports:
+      - "8080:8080"
+    environment:
+      CI_ENVIRONMENT: production
+      database.default.hostname: mysql_db
+      database.default.database: smartcity
+      database.default.username: env_user
+      database.default.password: env_secret
+      database.default.DBDriver: MySQLi
+      database.default.port: 3306
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-accessrahasia_super_secret_min_32_chars}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: guest
+      RABBITMQ_PASSWORD: guest
+      RABBITMQ_VHOST: /
+      RABBITMQ_EXCHANGE: city.events
+    depends_on:
+      mysql_db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - smartcity-net
+    restart: unless-stopped
+
   python-ml:
-    build: ./python-ml-service
+    build:
+      context: ./python-ml-service
+      dockerfile: Dockerfile
     container_name: python-ml
     ports:
       - "5000:5000"
-    env_file:
-      - ./python-ml-service/.env
+    environment:
+      APP_ENV: production
+      APP_PORT: 5000
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: guest
+      RABBITMQ_PASS: guest
+      RABBITMQ_EXCHANGE: city.events
+      DB_HOST: mysql_db
+      DB_PORT: 3306
+      DB_NAME: smartcity
+      DB_USER: env_user
+      DB_PASS: env_secret
+      JWT_SECRET: ${JWT_ACCESS_SECRET:-accessrahasia_super_secret_min_32_chars}
+      MODEL_PATH: models/smartcity_models.pkl
     depends_on:
       rabbitmq:
         condition: service_healthy
-    networks:
-      - smartcity-net
+      mysql_db:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 60s
+    networks:
+      - smartcity-net
     restart: unless-stopped
 
 volumes:
