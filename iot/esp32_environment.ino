@@ -1,213 +1,171 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
-#include <DHT.h>
 #include <ArduinoJson.h>
-#include <IRremote.hpp>
 
+// ── WiFi ───────────────────────────────────────────────────────────
 const char* WIFI_SSID     = "Wokwi-GUEST";
 const char* WIFI_PASSWORD = "";
 
-const char* MQTT_BROKER   = "103.147.92.134";
+// ── MQTT ───────────────────────────────────────────────────────────
+const char* MQTT_BROKER   = "mosquitto";   // Docker: nama service
 const int   MQTT_PORT     = 1883;
 const char* MQTT_USER     = "iot_device";
-const char* MQTT_PASS     = "iot_secret";
-const char* MQTT_CLIENT   = "ESP32-ENV-ZONE-A";
+const char* MQTT_PASSWORD = "iot_secret";
+const char* SENSOR_ID     = "ESP32-ENV-01";
 
-const char* ZONE          = "A";
-const char* SENSOR_ID     = "ESP32-A-01";
+// ── Pin ────────────────────────────────────────────────────────────
+// Ultrasonic HC-SR04
+const int PIN_TRIG = 5;
+const int PIN_ECHO = 18;
 
-// ── Pin Definitions ──────────────────────────────────────────
-#define DHT_PIN           15
-#define DHT_TYPE          DHT22
-#define AQI_PIN           34
-#define FLOOD_PIN         35
-#define RAIN_PIN          32
-#define RAIN_INTENSITY_PIN 33
-#define IR_RECV_PIN       19
+// Rain Sensor (analog via potentiometer)
+const int PIN_RAIN = 34;
 
-const unsigned long PUBLISH_INTERVAL_MS = 30000;
-const unsigned long VEHICLE_PUBLISH_INTERVAL_MS = 60000;
+// ── Konstanta ──────────────────────────────────────────────────────
+const float MAX_RAINFALL_MM   = 100.0f; 
+const float SENSOR_HEIGHT_CM  = 200.0f; 
+const unsigned long INTERVAL  = 5000;   
 
-// ── Globals ──────────────────────────────────────────────────
-DHT          dht(DHT_PIN, DHT_TYPE);
+// ── Globals ────────────────────────────────────────────────────────
 WiFiClient   wifiClient;
 PubSubClient mqtt(wifiClient);
+unsigned long lastPublish = 0;
 
-char         topicBuf[64];
-unsigned long lastPublish   = 0;
-unsigned long lastVehiclePublish = 0;
-volatile int  vehicleCount  = 0;
-unsigned long lastIRTime    = 0;
+// ── Fungsi Sensor ──────────────────────────────────────────────────
+
+float readWaterLevel() {
+  // Kirim pulse TRIG
+  digitalWrite(PIN_TRIG, LOW);
+  delayMicroseconds(2);
+  digitalWrite(PIN_TRIG, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(PIN_TRIG, LOW);
+
+  // Baca durasi ECHO
+  long duration = pulseIn(PIN_ECHO, HIGH, 30000); // timeout 30ms
+  if (duration == 0) return 0.0f;
+
+  // Hitung jarak (cm): duration * 0.034 / 2
+  float distance_cm = (duration * 0.034f) / 2.0f;
+
+  // Water level = tinggi sensor - jarak ke permukaan air
+  float water_level = SENSOR_HEIGHT_CM - distance_cm;
+  if (water_level < 0.0f) water_level = 0.0f;
+
+  return water_level;
+}
+
+float readRainfall() {
+  // Baca ADC (0–4095) → konversi ke mm/h (0–100)
+  int raw = analogRead(PIN_RAIN);
+  float rainfall = (raw / 4095.0f) * MAX_RAINFALL_MM;
+  return rainfall;
+}
+
+// ── Setup WiFi ─────────────────────────────────────────────────────
+
+void connectWiFi() {
+  Serial.print("[WiFi] Connecting to ");
+  Serial.println(WIFI_SSID);
+
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  int attempt = 0;
+  while (WiFi.status() != WL_CONNECTED && attempt < 20) {
+    delay(500);
+    Serial.print(".");
+    attempt++;
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\n[WiFi] Connected! IP: " + WiFi.localIP().toString());
+  } else {
+    Serial.println("\n[WiFi] Failed to connect.");
+  }
+}
+
+// ── Setup MQTT ─────────────────────────────────────────────────────
+
+void connectMQTT() {
+  mqtt.setServer(MQTT_BROKER, MQTT_PORT);
+
+  while (!mqtt.connected()) {
+    Serial.print("[MQTT] Connecting...");
+    String clientId = String("esp32-env-") + String(SENSOR_ID);
+
+    if (mqtt.connect(clientId.c_str(), MQTT_USER, MQTT_PASSWORD)) {
+      Serial.println(" Connected!");
+    } else {
+      Serial.print(" Failed (rc=");
+      Serial.print(mqtt.state());
+      Serial.println("). Retry in 3s...");
+      delay(3000);
+    }
+  }
+}
+
+// ── Publish Data ───────────────────────────────────────────────────
+
+void publishData(float rainfall, float water_level) {
+  // Build JSON payload
+  StaticJsonDocument<200> doc;
+  doc["sensor_id"]   = SENSOR_ID;
+  doc["rainfall"]    = roundf(rainfall * 100) / 100.0f;   // 2 desimal
+  doc["water_level"] = roundf(water_level * 100) / 100.0f;
+
+  char payload[200];
+  serializeJson(doc, payload);
+
+  // Build MQTT topic: city/<SENSOR_ID>/environment
+  String topic = String("city/") + String(SENSOR_ID) + "/environment";
+
+  bool ok = mqtt.publish(topic.c_str(), payload, true); // retained
+
+  Serial.print("[MQTT] ");
+  Serial.print(ok ? "OK" : "FAIL");
+  Serial.print(" → ");
+  Serial.print(topic);
+  Serial.print(" | ");
+  Serial.println(payload);
+}
+
+// ── Setup & Loop ───────────────────────────────────────────────────
 
 void setup() {
-    Serial.begin(115200);
-    dht.begin();
+  Serial.begin(115200);
+  delay(100);
 
-    IrReceiver.begin(IR_RECV_PIN, DISABLE_LED_FEEDBACK);
-    Serial.println("[IR] Receiver aktif di pin " + String(IR_RECV_PIN));
+  pinMode(PIN_TRIG, OUTPUT);
+  pinMode(PIN_ECHO, INPUT);
 
-    Serial.printf("[WiFi] Connecting to %s...\n", WIFI_SSID);
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(500);
-        Serial.print(".");
-    }
-    Serial.printf("\n[WiFi] Connected. IP: %s\n", WiFi.localIP().toString().c_str());
+  Serial.println("=== Smart City Environment Sensor ===");
+  Serial.println("Sensors: HC-SR04 (water level) + Rain Sensor");
 
-    mqtt.setServer(MQTT_BROKER, MQTT_PORT);
-    mqtt.setCallback(onMqttMessage);
-    mqtt.setBufferSize(512);
-
-    snprintf(topicBuf, sizeof(topicBuf), "city/%s/air", ZONE);
+  connectWiFi();
 }
 
 void loop() {
-    if (!mqtt.connected()) {
-        reconnectMQTT();
-    }
-    mqtt.loop();
+  // Pastikan WiFi tetap terhubung
+  if (WiFi.status() != WL_CONNECTED) {
+    connectWiFi();
+  }
 
-    // ── Cek IR Sensor kendaraan ──────────────────────────────
-    if (IrReceiver.decode()) {
-        unsigned long now = millis();
-        if (now - lastIRTime > 500) {
-            vehicleCount++;
-            lastIRTime = now;
-            Serial.printf("[IR] Kendaraan terdeteksi! Total: %d | Code: 0x%lX\n",
-                          vehicleCount,
-                          IrReceiver.decodedIRData.decodedRawData);
-        }
-        IrReceiver.resume();
-    }
+  // Pastikan MQTT tetap terhubung
+  if (!mqtt.connected()) {
+    connectMQTT();
+  }
+  mqtt.loop();
 
-    unsigned long now = millis();
+  // Publish setiap INTERVAL ms
+  unsigned long now = millis();
+  if (now - lastPublish >= INTERVAL) {
+    lastPublish = now;
 
-    if (now - lastPublish >= PUBLISH_INTERVAL_MS) {
-        lastPublish = now;
-        publishSensorData();
-    }
+    float water_level = readWaterLevel();
+    float rainfall    = readRainfall();
 
-    if (now - lastVehiclePublish >= VEHICLE_PUBLISH_INTERVAL_MS) {
-        lastVehiclePublish = now;
-        publishVehicleData();
-    }
-}
+    Serial.printf("[SENSOR] water_level=%.2f cm | rainfall=%.2f mm/h\n",
+                  water_level, rainfall);
 
-void publishVehicleData() {
-    StaticJsonDocument<128> doc;
-    doc["sensor_id"]      = SENSOR_ID;
-    doc["zone"]           = ZONE;
-    doc["timestamp"]      = millis();
-    doc["vehicle_count"]  = vehicleCount;
-    doc["interval_sec"]   = VEHICLE_PUBLISH_INTERVAL_MS / 1000;
-
-    const char* trafficStatus;
-    if      (vehicleCount < 5)   trafficStatus = "Lancar";
-    else if (vehicleCount < 15)  trafficStatus = "Sedang";
-    else if (vehicleCount < 30)  trafficStatus = "Padat";
-    else                         trafficStatus = "Macet";
-
-    doc["traffic_status"] = trafficStatus;
-    vehicleCount = 0;
-
-    char payload[128];
-    serializeJson(doc, payload);
-
-    char vehicleTopic[64];
-    snprintf(vehicleTopic, sizeof(vehicleTopic), "city/%s/vehicle", ZONE);
-
-    bool ok = mqtt.publish(vehicleTopic, payload, true);
-    Serial.printf("[MQTT] %s → %s\n%s\n", ok ? "OK" : "FAIL", vehicleTopic, payload);
-}
-
-void publishSensorData() {
-    float temperature = dht.readTemperature();
-    float humidity    = dht.readHumidity();
-
-    if (isnan(temperature) || isnan(humidity)) {
-        Serial.println("[DHT22] Pembacaan gagal, coba lagi...");
-        return;
-    }
-
-    int rawAqi           = analogRead(AQI_PIN);
-    int rawFlood         = analogRead(FLOOD_PIN);
-    int rawRain          = analogRead(RAIN_PIN);
-    int rawRainIntensity = analogRead(RAIN_INTENSITY_PIN);
-
-    float aqi           = mapFloat(rawAqi,           0, 4095, 0.0,   300.0);
-    float floodLevel    = mapFloat(rawFlood,          0, 4095, 0.0,   100.0);
-    float rainLevel     = mapFloat(rawRain,           0, 4095, 0.0,   100.0);
-    float rainIntensity = mapFloat(rawRainIntensity,  0, 4095, 0.0,   100.0);
-
-    float pm25 = aqi * 0.25f;
-    float pm10 = aqi * 0.40f;
-
-    const char* rainStatus;
-    if      (rainIntensity < 5.0)   rainStatus = "Tidak Hujan";
-    else if (rainIntensity < 20.0)  rainStatus = "Hujan Ringan";
-    else if (rainIntensity < 50.0)  rainStatus = "Hujan Sedang";
-    else                            rainStatus = "Hujan Lebat";
-
-    const char* aqiStatus;
-    if      (aqi < 50)   aqiStatus = "Baik";
-    else if (aqi < 100)  aqiStatus = "Sedang";
-    else if (aqi < 150)  aqiStatus = "Tidak Sehat (Sensitif)";
-    else if (aqi < 200)  aqiStatus = "Tidak Sehat";
-    else if (aqi < 300)  aqiStatus = "Sangat Tidak Sehat";
-    else                 aqiStatus = "Berbahaya";
-
-    const char* floodStatus;
-    if      (floodLevel < 20)  floodStatus = "Aman";
-    else if (floodLevel < 50)  floodStatus = "Waspada";
-    else if (floodLevel < 80)  floodStatus = "Siaga";
-    else                       floodStatus = "Bahaya";
-
-    StaticJsonDocument<512> doc;
-    doc["sensor_id"]       = SENSOR_ID;
-    doc["zone"]            = ZONE;
-    doc["timestamp"]       = millis();
-    doc["aqi"]             = roundf(aqi * 10) / 10.0f;
-    doc["aqi_status"]      = aqiStatus;
-    doc["pm25"]            = roundf(pm25 * 10) / 10.0f;
-    doc["pm10"]            = roundf(pm10 * 10) / 10.0f;
-    doc["temperature"]     = roundf(temperature * 10) / 10.0f;
-    doc["humidity"]        = roundf(humidity * 10) / 10.0f;
-    doc["rain_level"]      = roundf(rainLevel * 10) / 10.0f;
-    doc["rain_intensity"]  = roundf(rainIntensity * 10) / 10.0f;
-    doc["rain_status"]     = rainStatus;
-    doc["flood_level"]     = roundf(floodLevel * 10) / 10.0f;
-    doc["flood_status"]    = floodStatus;
-    doc["vehicle_count"]   = vehicleCount;
-    vehicleCount = 0;
-
-    char payload[512];
-    serializeJson(doc, payload);
-
-    bool ok = mqtt.publish(topicBuf, payload, true);
-    Serial.printf("[MQTT] %s → %s\n%s\n", ok ? "OK" : "FAIL", topicBuf, payload);
-}
-
-float mapFloat(int x, int inMin, int inMax, float outMin, float outMax) {
-    return (float)(x - inMin) * (outMax - outMin) / (float)(inMax - inMin) + outMin;
-}
-
-void reconnectMQTT() {
-    while (!mqtt.connected()) {
-        Serial.print("[MQTT] Connecting...");
-        if (mqtt.connect(MQTT_CLIENT, MQTT_USER, MQTT_PASS)) {
-            Serial.println(" connected.");
-            char cmdTopic[64];
-            snprintf(cmdTopic, sizeof(cmdTopic), "city/%s/cmd", ZONE);
-            mqtt.subscribe(cmdTopic);
-        } else {
-            Serial.printf(" failed (rc=%d). Retry in 5s\n", mqtt.state());
-            delay(5000);
-        }
-    }
-}
-
-void onMqttMessage(char* topic, byte* message, unsigned int length) {
-    Serial.printf("[MQTT CMD] Topic: %s | Message: ", topic);
-    for (unsigned int i = 0; i < length; i++) Serial.print((char)message[i]);
-    Serial.println();
+    publishData(rainfall, water_level);
+  }
 }
