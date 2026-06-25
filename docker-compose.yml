@@ -78,6 +78,26 @@ services:
       - smartcity-net
     restart: unless-stopped
 
+  python-ml:
+    build: ./python-ml-service
+    container_name: python-ml
+    ports:
+      - "5000:5000"
+    env_file:
+      - ./python-ml-service/.env
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - smartcity-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
 volumes:
   mysql_data:
 
