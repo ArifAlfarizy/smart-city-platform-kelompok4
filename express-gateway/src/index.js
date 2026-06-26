@@ -21,21 +21,30 @@ app.get("/health", (req, res) => {
   });
 });
 
+// Auth endpoints (public)
 app.use("/auth/register", authLimiter, makeProxy(services.auth));
 app.use("/auth/login", authLimiter, makeProxy(services.auth));
 app.use("/oauth/token", authLimiter, makeProxy(services.auth));
 app.use("/oauth/revoke", authLimiter, makeProxy(services.auth));
+app.use("/oauth/introspect", authLimiter, makeProxy(services.auth));
 
+// Traffic endpoints (protected) 
 app.use("/api/traffic", limiter, verifyToken, makeProxy(services.traffic));
-app.use(
-  "/api/environment",
-  limiter,
-  verifyToken,
-  makeProxy(services.environment),
-);
+app.use("/api/traffic-status", limiter, verifyToken, makeProxy(services.traffic));
+app.use("/api/traffic-data", limiter, verifyToken, makeProxy(services.traffic));
+app.use("/api/traffic-history", limiter, verifyToken, makeProxy(services.traffic));
+app.use("/api/traffic-summary", limiter, verifyToken, makeProxy(services.traffic));
+
+// Environment endpoints (protected)
+app.use("/api/environment", limiter, verifyToken, makeProxy(services.environment));
+
+// Citizen endpoints (protected)
 app.use("/api/citizens", limiter, verifyToken, makeProxy(services.citizen));
+
+// ML endpoints (protected)
 app.use("/api/ml", limiter, verifyToken, makeProxy(services.ml));
 
+// Dashboard
 app.use("/api/dashboard", limiter, verifyToken, dashboardRouter);
 
 // 404 fallback

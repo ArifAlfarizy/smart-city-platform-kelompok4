@@ -1,17 +1,17 @@
 FROM node:18-alpine
 
+RUN apk add --no-cache tzdata \
+    && cp /usr/share/zoneinfo/Asia/Jakarta /etc/localtime \
+    && echo "Asia/Jakarta" > /etc/timezone \
+    && apk del tzdata
+
 WORKDIR /app
 
-# Copy package files
 COPY package*.json ./
-
-# Install dependencies
 RUN npm ci --only=production
 
-# Copy source code
 COPY . .
 
-# Create .env from example if not exists
 RUN if [ -f .env.example ] && [ ! -f .env ]; then cp .env.example .env; fi
 
 EXPOSE 3002
