@@ -4,7 +4,7 @@
     "type": "tab",
     "label": "Environment IoT Bridge",
     "disabled": false,
-    "info": "Role 4: Rain Sensor + Ultrasonic → POST /environment-data"
+    "info": "ESP32 (HC-SR04 + Rain Sensor) → MQTT → Node-RED → POST /api/environment/sensor"
   },
 
   {
@@ -16,7 +16,20 @@
     "qos": "1",
     "datatype": "json",
     "broker": "mqtt_broker",
-    "x": 140, "y": 100,
+    "x": 140,
+    "y": 100,
+    "wires": [["validate_payload"]]
+  },
+
+  {
+    "id": "validate_payload",
+    "type": "function",
+    "z": "tab_env_flow",
+    "name": "Validasi payload ESP32",
+    "func": "const raw = msg.payload;\n\n// Cek field wajib dari firmware esp32_environment.ino\nif (raw.rainfall === undefined || raw.rainfall === null) {\n    node.warn('[ENV] Missing rainfall: ' + JSON.stringify(raw));\n    return null;\n}\nif (raw.water_level === undefined || raw.water_level === null) {\n    node.warn('[ENV] Missing water_level: ' + JSON.stringify(raw));\n    return null;\n}\nif (isNaN(parseFloat(raw.rainfall)) || parseFloat(raw.rainfall) < 0) {\n    node.warn('[ENV] rainfall tidak valid: ' + raw.rainfall);\n    return null;\n}\nif (isNaN(parseFloat(raw.water_level)) || parseFloat(raw.water_level) < 0) {\n    node.warn('[ENV] water_level tidak valid: ' + raw.water_level);\n    return null;\n}\n\nreturn msg;",
+    "outputs": 1,
+    "x": 360,
+    "y": 100,
     "wires": [["transform_payload"]]
   },
 
@@ -24,10 +37,11 @@
     "id": "transform_payload",
     "type": "function",
     "z": "tab_env_flow",
-    "name": "Transform → /environment-data",
-    "func": "const raw = msg.payload;\n\nif (raw.rainfall === undefined || raw.water_level === undefined) {\n    node.warn('[ENV] Payload tidak lengkap: ' + JSON.stringify(raw));\n    return null;\n}\n\nconst token = flow.get('IOT_JWT_TOKEN');\nif (!token) {\n    node.warn('[ENV] Token belum tersedia, payload masuk antrian.');\n    flow.set('pendingQueue', (flow.get('pendingQueue') || []).concat([msg.payload]));\n    return null;\n}\n\nmsg.payload = {\n    sensor_id   : raw.sensor_id   || 'NODE-RED-BRIDGE',\n    rainfall    : parseFloat(raw.rainfall),\n    water_level : parseFloat(raw.water_level)\n};\nmsg.headers = {\n    'Content-Type' : 'application/json',\n    'Authorization': 'Bearer ' + token\n};\nmsg.url = (env.get('API_GATEWAY_URL') || 'http://api-gateway:3000') + '/environment-data';\n\nnode.log('[ENV] rainfall=' + msg.payload.rainfall + ' water_level=' + msg.payload.water_level);\nreturn msg;",
+    "name": "Transform → /api/environment/sensor",
+    "func": "const raw = msg.payload;\n\n// Cek token\nconst token = flow.get('IOT_JWT_TOKEN');\nif (!token) {\n    node.warn('[ENV] Token belum ada, payload masuk antrian.');\n    const q = flow.get('pendingQueue') || [];\n    q.push(raw);\n    flow.set('pendingQueue', q);\n    return null;\n}\n\n// Build payload — hanya field yang ada di firmware\nmsg.payload = {\n    sensor_id   : String(raw.sensor_id || 'ESP32-ENV-01'),\n    rainfall    : Math.round(parseFloat(raw.rainfall) * 100) / 100,\n    water_level : Math.round(parseFloat(raw.water_level) * 100) / 100\n};\n\nmsg.headers = {\n    'Content-Type' : 'application/json',\n    'Authorization': 'Bearer ' + token\n};\n\nmsg.url = (env.get('API_GATEWAY_URL') || 'http://api-gateway:3000')\n         + '/api/environment/sensor';\n\nnode.log('[ENV] sensor_id=' + msg.payload.sensor_id\n    + ' rainfall='    + msg.payload.rainfall\n    + ' water_level=' + msg.payload.water_level);\n\nreturn msg;",
     "outputs": 1,
-    "x": 380, "y": 100,
+    "x": 590,
+    "y": 100,
     "wires": [["http_post_env", "debug_transform"]]
   },
 
@@ -35,11 +49,12 @@
     "id": "http_post_env",
     "type": "http request",
     "z": "tab_env_flow",
-    "name": "POST /environment-data",
+    "name": "POST /api/environment/sensor",
     "method": "POST",
     "ret": "obj",
     "url": "",
-    "x": 650, "y": 100,
+    "x": 840,
+    "y": 100,
     "wires": [["handle_response"]]
   },
 
@@ -48,9 +63,10 @@
     "type": "function",
     "z": "tab_env_flow",
     "name": "Handle response",
-    "func": "const status = msg.statusCode;\nif (status === 201 || status === 200) {\n    node.log('[ENV OK] Data tersimpan.');\n} else if (status === 401) {\n    node.warn('[ENV] Token expired, force refresh.');\n    flow.set('iot_token_exp', 0);\n    flow.set('pendingQueue', (flow.get('pendingQueue') || []).concat([msg.payload]));\n} else if (status === 429) {\n    node.warn('[ENV] Rate limit, masuk antrian.');\n    flow.set('pendingQueue', (flow.get('pendingQueue') || []).concat([msg.payload]));\n} else {\n    node.error('[ENV ERROR ' + status + '] ' + JSON.stringify(msg.payload));\n}\nreturn msg;",
+    "func": "const status = msg.statusCode;\nconst body   = msg.payload;\n\nif (status === 201) {\n    const d = body.data || {};\n    node.log('[ENV OK] id=' + d.id\n        + ' flood_status=' + d.flood_status\n        + ' alerts_created=' + (d.alerts_created || 0));\n\n} else if (status === 401) {\n    node.warn('[ENV] Token expired — force refresh.');\n    flow.set('iot_token_exp', 0);\n    // Simpan payload ke antrian biar di-retry\n    const q = flow.get('pendingQueue') || [];\n    if (body) q.push(body);\n    flow.set('pendingQueue', q);\n\n} else if (status === 422) {\n    node.warn('[ENV] Validasi gagal: ' + body.message);\n\n} else if (status === 429) {\n    node.warn('[ENV] Rate limit — masuk antrian.');\n    const q = flow.get('pendingQueue') || [];\n    if (body) q.push(body);\n    flow.set('pendingQueue', q);\n\n} else {\n    node.error('[ENV ERROR ' + status + '] ' + JSON.stringify(body));\n}\n\nreturn msg;",
     "outputs": 1,
-    "x": 900, "y": 100,
+    "x": 1080,
+    "y": 100,
     "wires": [["debug_response"]]
   },
 
@@ -58,10 +74,11 @@
     "id": "debug_transform",
     "type": "debug",
     "z": "tab_env_flow",
-    "name": "Debug transform",
+    "name": "Debug payload",
     "active": true,
     "complete": "payload",
-    "x": 650, "y": 180,
+    "x": 840,
+    "y": 180,
     "wires": []
   },
 
@@ -72,7 +89,8 @@
     "name": "Debug response",
     "active": false,
     "complete": "payload",
-    "x": 1080, "y": 100,
+    "x": 1260,
+    "y": 100,
     "wires": []
   },
 
@@ -83,7 +101,8 @@
     "name": "Retry queue (60s)",
     "repeat": "60",
     "once": false,
-    "x": 140, "y": 300,
+    "x": 140,
+    "y": 300,
     "wires": [["flush_queue"]]
   },
 
@@ -91,10 +110,11 @@
     "id": "flush_queue",
     "type": "function",
     "z": "tab_env_flow",
-    "name": "Flush queue",
-    "func": "const queue = flow.get('pendingQueue') || [];\nif (queue.length === 0) return null;\nconst item = queue.shift();\nflow.set('pendingQueue', queue);\nmsg.payload = item;\nmsg.url = (env.get('API_GATEWAY_URL') || 'http://api-gateway:3000') + '/environment-data';\nmsg.headers = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (flow.get('IOT_JWT_TOKEN') || '') };\nreturn msg;",
+    "name": "Flush pending queue",
+    "func": "const queue = flow.get('pendingQueue') || [];\nif (queue.length === 0) return null;\n\nconst item = queue.shift();\nflow.set('pendingQueue', queue);\n\nconst token = flow.get('IOT_JWT_TOKEN') || '';\n\nmsg.payload = {\n    sensor_id   : String(item.sensor_id || 'ESP32-ENV-01'),\n    rainfall    : parseFloat(item.rainfall  || 0),\n    water_level : parseFloat(item.water_level || 0)\n};\nmsg.url     = (env.get('API_GATEWAY_URL') || 'http://api-gateway:3000')\n             + '/api/environment/sensor';\nmsg.headers = {\n    'Content-Type' : 'application/json',\n    'Authorization': 'Bearer ' + token\n};\n\nnode.log('[ENV RETRY] remaining=' + queue.length);\nreturn msg;",
     "outputs": 1,
-    "x": 380, "y": 300,
+    "x": 380,
+    "y": 300,
     "wires": [["http_post_env"]]
   },
 
@@ -106,9 +126,8 @@
     "repeat": "30",
     "once": true,
     "onceDelay": "1",
-    "payload": "",
-    "payloadType": "date",
-    "x": 150, "y": 460,
+    "x": 150,
+    "y": 460,
     "wires": [["check_token_expiry"]]
   },
 
@@ -119,7 +138,8 @@
     "name": "Cek token masih valid?",
     "func": "const exp = flow.get('iot_token_exp') || 0;\nif (Date.now() < exp - 60000) {\n    node.status({ fill: 'green', shape: 'dot', text: 'token valid' });\n    return null;\n}\nnode.status({ fill: 'yellow', shape: 'ring', text: 'refreshing...' });\nreturn msg;",
     "outputs": 1,
-    "x": 400, "y": 460,
+    "x": 400,
+    "y": 460,
     "wires": [["build_token_request"]]
   },
 
@@ -127,10 +147,11 @@
     "id": "build_token_request",
     "type": "function",
     "z": "tab_env_flow",
-    "name": "Build request /oauth/token",
-    "func": "const authUrl = env.get('AUTH_SERVICE_URL') || 'http://auth-service:3002';\nmsg.url = authUrl + '/oauth/token';\nmsg.method = 'POST';\nmsg.headers = { 'Content-Type': 'application/json' };\nmsg.payload = {\n    grant_type: 'client_credentials',\n    client_id: env.get('IOT_CLIENT_ID') || 'iot-environment-device',\n    client_secret: env.get('IOT_CLIENT_SECRET') || ''\n};\nreturn msg;",
+    "name": "Build /oauth/token request",
+    "func": "const authUrl = env.get('AUTH_SERVICE_URL') || 'http://auth-service:3002';\nmsg.url     = authUrl + '/oauth/token';\nmsg.method  = 'POST';\nmsg.headers = { 'Content-Type': 'application/json' };\nmsg.payload = {\n    grant_type   : 'client_credentials',\n    client_id    : env.get('IOT_CLIENT_ID')     || 'iot-environment-device',\n    client_secret: env.get('IOT_CLIENT_SECRET') || ''\n};\nreturn msg;",
     "outputs": 1,
-    "x": 650, "y": 460,
+    "x": 650,
+    "y": 460,
     "wires": [["http_request_token"]]
   },
 
@@ -142,7 +163,8 @@
     "method": "POST",
     "ret": "obj",
     "url": "",
-    "x": 880, "y": 460,
+    "x": 880,
+    "y": 460,
     "wires": [["save_iot_token"]]
   },
 
@@ -151,9 +173,10 @@
     "type": "function",
     "z": "tab_env_flow",
     "name": "Simpan token",
-    "func": "if (msg.statusCode === 200 && msg.payload && msg.payload.access_token) {\n    flow.set('IOT_JWT_TOKEN', msg.payload.access_token);\n    flow.set('iot_token_exp', Date.now() + (msg.payload.expires_in || 3600) * 1000);\n    node.status({ fill: 'green', shape: 'dot', text: 'token refreshed' });\n    node.log('[AUTH OK] Token refreshed');\n} else {\n    node.status({ fill: 'red', shape: 'ring', text: 'auth failed' });\n    node.error('[AUTH FAILED] ' + JSON.stringify(msg.payload));\n}\nreturn null;",
+    "func": "if (msg.statusCode === 200 && msg.payload && msg.payload.access_token) {\n    flow.set('IOT_JWT_TOKEN', msg.payload.access_token);\n    flow.set('iot_token_exp', Date.now() + (msg.payload.expires_in || 3600) * 1000);\n    node.status({ fill: 'green', shape: 'dot', text: 'token refreshed' });\n    node.log('[AUTH OK] IoT token refreshed');\n} else {\n    node.status({ fill: 'red', shape: 'ring', text: 'auth failed' });\n    node.error('[AUTH FAILED] ' + JSON.stringify(msg.payload));\n}\nreturn null;",
     "outputs": 1,
-    "x": 1080, "y": 460,
+    "x": 1080,
+    "y": 460,
     "wires": [[]]
   },
 
