@@ -2,39 +2,38 @@ USE smartcity;
 
 -- Seed Citizen Service
 INSERT INTO citizens
-(user_id, nik, name, zone, phone)
+(user_id, nik, name, phone) 
 VALUES
-(1,'3141111111111111','Jane Doe','081111111111'),
-(2,'3152222222222222','John Doe','082222222222'),
-(3,'3163333333333333','Joe Public','083333333333');
+(1, '3141111111111111', 'Jane Doe', '081111111111'),
+(2, '3152222222222222', 'John Doe', '082222222222'),
+(3, '3163333333333333', 'Joe Public', '083333333333');
 
 INSERT INTO reports
 (citizen_id, road_name, category, description, status)
 VALUES
 (1, 'Jalan MT Haryono', 'accident', 'Terjadi kecelakaan antara dua kendaraan di dekat Simpang Cawang.', 'process'),
 (2, 'Jalan MT Haryono', 'flood', 'Genangan air sekitar 20 cm menyebabkan kendaraan melambat.', 'pending'),
-(3, 'Jalan Prof Dr Soepomo', 'broken_vehicle', 'Terdapat mobil mogok di bahu jalan sehingga menghambat arus lalu lintas.', 'completed' );
+(3, 'Jalan Prof Dr Soepomo', 'broken_vehicle', 'Terdapat mobil mogok di bahu jalan sehingga menghambat arus lalu lintas.', 'completed');
 
 INSERT INTO notifications
 (citizen_id, title, message, is_read)
 VALUES
 (1, 'Laporan Diproses', 'Operator telah menerima laporan dan sedang melakukan verifikasi.', FALSE),
-(2, 'Petugas Dikirim', 'Petugas telah dikirim ke lokasi untuk melakukan penanganan.', FALSE ),
+(2, 'Petugas Dikirim', 'Petugas telah dikirim ke lokasi untuk melakukan penanganan.', FALSE),
 (3, 'Penanganan Selesai', 'Penanganan insiden telah selesai dilakukan dan kondisi lalu lintas kembali normal.', TRUE);
 
-
 -- Seed Data untuk traffic_data
-INSERT INTO traffic_data (sensor_id, zone, vehicle_count, avg_speed, congestion_level, recorded_at) VALUES
-('TS001', 'A', 150, 12.50, 8, '2026-06-03 20:00:00'),
-('TS002', 'B', 45, 45.20, 2, '2026-06-03 20:05:00'),
-('TS003', 'C', 95, 28.00, 5, '2026-06-03 20:10:00'),
-('TS001', 'A', 165, 10.15, 9, '2026-06-03 20:15:00'),
-('TS002', 'B', 50, 42.00, 3, '2026-06-03 20:20:00');
+INSERT INTO traffic_data (road_name, vehicle_count, average_speed, congestion_level, observation_time) VALUES
+('Jalan MT Haryono', 150, 12.50, 'Macet', '2026-06-03 20:00:00'),
+('Jalan MT Haryono', 45, 45.20, 'Normal', '2026-06-03 20:05:00'),
+('Jalan MT Haryono', 95, 28.00, 'Padat', '2026-06-03 20:10:00'),
+('Jalan MT Haryono', 165, 10.15, 'Sangat Macet', '2026-06-03 20:15:00'),
+('Jalan MT Haryono', 50, 42.00, 'Normal', '2026-06-03 20:20:00');
 
 -- Seed Data untuk incidents
-INSERT INTO incidents (zone, incident_type, description, status, created_at) VALUES
-('A', 'Kecelakaan', 'Tabrakan motor di depan pasar, menutup lajur kiri.', 'active', '2026-06-03 20:00:00'),
-('C', 'Pohon Tumbang', 'Pohon tumbang menghalangi jalan utama zona C.', 'resolved', '2026-06-03 15:30:00');
+INSERT INTO incidents (road_name, incident_type, description, status, created_at) VALUES
+('Jalan MT Haryono', 'accident', 'Tabrakan motor di depan pasar, menutup lajur kiri.', 'active', '2026-06-03 20:00:00'),
+('Jalan MT Haryono', 'fallen_tree', 'Pohon tumbang menghalangi jalan utama zona C.', 'resolved', '2026-06-03 15:30:00');
 
 INSERT IGNORE INTO zones (id, name, district, area_km2) VALUES
     (1, 'A', 'Jakarta Pusat',   48.13),
@@ -43,6 +42,7 @@ INSERT IGNORE INTO zones (id, name, district, area_km2) VALUES
     (4, 'D', 'Jakarta Barat',   129.54),
     (5, 'E', 'Jakarta Timur',   187.73);
 
+-- Environment data
 INSERT INTO environment_data
     (sensor_id, zone, aqi, aqi_status, temperature, humidity,
      rain_level, rain_intensity, rain_status,
@@ -61,7 +61,6 @@ VALUES
 ('ESP32-E-01','E', 55.0,'Sedang',              28.5, 60.0,  0.0,  0.0,'Tidak Hujan',  0.0,'Aman',    18.0,25.0,22.0,0.5,30.0, DATE_SUB(NOW(), INTERVAL 7  MINUTE)),
 ('ESP32-E-01','E', 62.4,'Sedang',              29.0, 62.0,  3.0,  1.5,'Tidak Hujan',  1.0,'Aman',    24.0,33.0,29.0,0.8,40.0, DATE_SUB(NOW(), INTERVAL 37 MINUTE));
 
-
 INSERT INTO vehicle_counts
     (sensor_id, zone, vehicle_count, interval_sec, traffic_status,
      rain_intensity, rain_status, flood_level, recorded_at)
@@ -71,23 +70,19 @@ VALUES
 ('ESP32-A-01','A', 31, 60,'Padat',   2.1, 'Tidak Hujan', 5.0,  DATE_SUB(NOW(), INTERVAL 125 MINUTE)),
 ('ESP32-A-01','A', 22, 60,'Sedang',  8.5, 'Hujan Ringan',6.5,  DATE_SUB(NOW(), INTERVAL 185 MINUTE)),
 ('ESP32-A-01','A', 18, 60,'Sedang',  0.0, 'Tidak Hujan', 4.0,  DATE_SUB(NOW(), INTERVAL 245 MINUTE)),
-
 ('ESP32-B-01','B', 8,  60,'Sedang',  45.2,'Hujan Lebat', 52.0, DATE_SUB(NOW(), INTERVAL 4  MINUTE)),
 ('ESP32-B-01','B', 5,  60,'Lancar',  68.3,'Hujan Lebat', 61.0, DATE_SUB(NOW(), INTERVAL 64 MINUTE)),
 ('ESP32-B-01','B', 35, 60,'Padat',   1.0, 'Tidak Hujan', 10.0, DATE_SUB(NOW(), INTERVAL 184 MINUTE)),
 ('ESP32-B-01','B', 44, 60,'Macet',   0.0, 'Tidak Hujan', 8.0,  DATE_SUB(NOW(), INTERVAL 244 MINUTE)),
 ('ESP32-B-01','B', 12, 60,'Sedang',  22.5,'Hujan Sedang',30.0, DATE_SUB(NOW(), INTERVAL 124 MINUTE)),
-
 ('ESP32-C-01','C', 3,  60,'Lancar',  72.3,'Hujan Lebat', 75.0, DATE_SUB(NOW(), INTERVAL 3  MINUTE)),
 ('ESP32-C-01','C', 2,  60,'Lancar',  80.1,'Hujan Lebat', 80.0, DATE_SUB(NOW(), INTERVAL 63 MINUTE)),
 ('ESP32-C-01','C', 28, 60,'Padat',   0.0, 'Tidak Hujan', 3.0,  DATE_SUB(NOW(), INTERVAL 183 MINUTE)),
 ('ESP32-C-01','C', 19, 60,'Sedang',  5.5, 'Hujan Ringan',5.0,  DATE_SUB(NOW(), INTERVAL 123 MINUTE)),
-
 ('ESP32-D-01','D', 20, 60,'Sedang',  15.0,'Hujan Sedang',20.0, DATE_SUB(NOW(), INTERVAL 6  MINUTE)),
 ('ESP32-D-01','D', 25, 60,'Padat',   10.5,'Hujan Ringan',15.0, DATE_SUB(NOW(), INTERVAL 66 MINUTE)),
 ('ESP32-D-01','D', 33, 60,'Padat',   0.0, 'Tidak Hujan', 8.0,  DATE_SUB(NOW(), INTERVAL 126 MINUTE)),
 ('ESP32-D-01','D', 40, 60,'Macet',   0.0, 'Tidak Hujan', 5.0,  DATE_SUB(NOW(), INTERVAL 246 MINUTE)),
-
 ('ESP32-E-01','E', 25, 60,'Padat',   0.0, 'Tidak Hujan', 0.0,  DATE_SUB(NOW(), INTERVAL 7  MINUTE)),
 ('ESP32-E-01','E', 28, 60,'Padat',   1.5, 'Tidak Hujan', 1.0,  DATE_SUB(NOW(), INTERVAL 67 MINUTE)),
 ('ESP32-E-01','E', 15, 60,'Sedang',  0.0, 'Tidak Hujan', 0.0,  DATE_SUB(NOW(), INTERVAL 127 MINUTE)),
