@@ -6,6 +6,7 @@ use Slim\Routing\RouteCollectorProxy;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Middleware\AuthMiddleware;
+use App\Middleware\RequireRoleMiddleware;
 
 require __DIR__ . '/../vendor/autoload.php';
 
@@ -22,43 +23,53 @@ $errorMiddleware = $app->addErrorMiddleware(
 );
 $errorMiddleware->getDefaultErrorHandler()->forceContentType('application/json');
 
-// CORS
 $app->add(function (Request $request, $handler): Response {
     if ($request->getMethod() === 'OPTIONS') {
         return (new \Slim\Psr7\Response())
             ->withHeader('Access-Control-Allow-Origin', '*')
-            ->withHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+            ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS')
             ->withHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
             ->withStatus(204);
     }
     return $handler->handle($request)
         ->withHeader('Access-Control-Allow-Origin', '*')
-        ->withHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS')
         ->withHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 });
 
-// Health check — tanpa auth (buat Docker healthcheck)
-$app->get('/health', function (Request $request, Response $response): Response {
-    $controller = new App\Controllers\EnvironmentController();
-    return $controller->health($request, $response);
+$app->get('/health', function (Request $req, Response $res): Response {
+    return (new App\Controllers\EnvironmentController())->health($req, $res);
 });
 
-// Semua endpoint environment wajib token
-$app->group('', function (RouteCollectorProxy $group): void {
-    // POST /environment-data — dari IoT (Rain Sensor + Ultrasonic)
-    $group->post('/environment-data', function (Request $request, Response $response): Response {
-        return (new App\Controllers\EnvironmentController())->store($request, $response);
+$app->group('/api/environment', function (RouteCollectorProxy $group): void {
+
+    $group->post('/sensor', function (Request $req, Response $res): Response {
+        return (new App\Controllers\EnvironmentController())->sensor($req, $res);
     });
 
-    // GET /environment-status — data terkini (rainfall + water_level)
-    $group->get('/environment-status', function (Request $request, Response $response): Response {
-        return (new App\Controllers\EnvironmentController())->status($request, $response);
+    $group->get('/current', function (Request $req, Response $res): Response {
+        return (new App\Controllers\EnvironmentController())->current($req, $res);
     });
 
-    // GET /flood-status — status banjir berdasarkan water_level
-    $group->get('/flood-status', function (Request $request, Response $response): Response {
-        return (new App\Controllers\EnvironmentController())->floodStatus($request, $response);
+    $group->get('/history', function (Request $req, Response $res): Response {
+        return (new App\Controllers\EnvironmentController())->history($req, $res);
     });
+
+    $group->get('/flood-status', function (Request $req, Response $res): Response {
+        return (new App\Controllers\EnvironmentController())->floodStatus($req, $res);
+    });
+
+    $group->get('/alerts', function (Request $req, Response $res): Response {
+        return (new App\Controllers\EnvironmentController())->alerts($req, $res);
+    });
+
+    $group->get('/alerts/{id}', function (Request $req, Response $res, array $args): Response {
+        return (new App\Controllers\EnvironmentController())->alertDetail($req, $res, $args);
+    });
+
+    $group->put('/alerts/{id}/resolve', function (Request $req, Response $res, array $args): Response {
+        return (new App\Controllers\EnvironmentController())->resolveAlert($req, $res, $args);
+    })->add(new RequireRoleMiddleware(['operator']));
 
 })->add(new AuthMiddleware());
 
