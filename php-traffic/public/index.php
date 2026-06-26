@@ -46,7 +46,8 @@ function jsonResponse($status, $code, $message, $data = null) {
     exit();
 }
 
-// Inisialisasi Controller Traffic
+// Inisialisasi Controller
+$incidentController = new IncidentController();
 $trafficController = new TrafficController();
 
 // ==================== DAFTAR PERUTEAN (ROUTING) API ====================
