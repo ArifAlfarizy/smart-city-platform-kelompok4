@@ -5,6 +5,7 @@ import joblib
 import numpy as np
 from datetime import datetime, timezone
 from typing import Optional, List
+from decimal import Decimal  
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -161,8 +162,8 @@ class TrafficAnalysisIn(BaseModel):
     rainfall: float = Field(0.0, ge=0)
     water_level: float = Field(200.0, ge=0)
     incident_count: int = Field(0, ge=0)
-    hour: Optional[int] = None  # auto-detect kalau None
-    day_of_week: Optional[int] = None  # auto-detect kalau None
+    hour: Optional[int] = None
+    day_of_week: Optional[int] = None
 
 class BatchAnalysisItem(BaseModel):
     vehicle_count: int
@@ -198,7 +199,6 @@ def run_inference(
     label = b["le"].inverse_transform([pred_enc])[0]
     conf = float(proba.max())
     
-    # Generate rekomendasi
     result = generate_recommendations(
         congestion_level=label,
         vehicle_count=vehicle_count,
@@ -292,6 +292,8 @@ def get_latest_recommendations(
     _=Depends(require_operator)
 ):
     import json
+    from decimal import Decimal  
+    
     conn = get_db()
     if not conn:
         return err(503, "Database tidak tersedia")
@@ -305,6 +307,10 @@ def get_latest_recommendations(
         )
         rows = cur.fetchall()
         for row in rows:
+            for key, value in row.items():
+                if isinstance(value, Decimal):
+                    row[key] = float(value)
+            
             if isinstance(row.get("result"), str):
                 row["result"] = json.loads(row["result"])
             if isinstance(row.get("input_data"), str):

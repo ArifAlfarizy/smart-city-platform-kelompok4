@@ -16,12 +16,14 @@ services:
       MYSQL_DATABASE: smartcity
       MYSQL_USER: env_user
       MYSQL_PASSWORD: env_secret
+      TZ: Asia/Jakarta
     ports:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
       - ./database/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+      - /etc/localtime:/etc/localtime:ro
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -prootpass || exit 1"]
       interval: 30s
@@ -38,9 +40,12 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
+      TZ: Asia/Jakarta
     ports:
       - "5672:5672"
       - "15672:15672"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 20s
@@ -57,6 +62,9 @@ services:
       - "1883:1883"
     volumes:
       - ./iot/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      TZ: Asia/Jakarta
     networks:
       - smartcity-net
     restart: unless-stopped
@@ -72,6 +80,9 @@ services:
     container_name: auth-service
     ports:
       - "3002:3002"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     environment:
       PORT: 3002
       DB_HOST: mysql_db
@@ -80,8 +91,9 @@ services:
       DB_PASSWORD: env_secret
       DB_NAME: smartcity
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-accessrahasia_super_secret_min_32_chars}
-      JWT_ACCESS_EXPIRES_IN: 3600
+      JWT_ACCESS_EXPIRES_IN: 86400
       SALT_ROUNDS: 10
+      TZ: Asia/Jakarta
     depends_on:
       mysql_db:
         condition: service_healthy
@@ -102,6 +114,9 @@ services:
     container_name: api-gateway
     ports:
       - "3000:3000"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     environment:
       PORT: 3000
       AUTH_SERVICE_URL: http://auth-service:3002
@@ -110,6 +125,7 @@ services:
       CITIZEN_SERVICE_URL: http://citizen-service:8080
       ML_SERVICE_URL: http://python-ml:5000
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-accessrahasia_super_secret_min_32_chars}
+      TZ: Asia/Jakarta
     depends_on:
       auth-service:
         condition: service_healthy
@@ -142,6 +158,8 @@ services:
     container_name: environment-service
     ports:
       - "8002:8002"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
     environment:
       DB_HOST: mysql_db
       DB_PORT: 3306
@@ -156,6 +174,7 @@ services:
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-accessrahasia_super_secret_min_32_chars}
       APP_ENV: production
       APP_DEBUG: "false"
+      TZ: Asia/Jakarta
     depends_on:
       mysql_db:
         condition: service_healthy
@@ -172,7 +191,7 @@ services:
     restart: unless-stopped
 
   # ============================================================
-  # TRAFFIC SERVICE (PHP) - TANPA HEALTHCHECK
+  # TRAFFIC SERVICE (PHP)
   # ============================================================
 
   traffic-service:
@@ -182,6 +201,8 @@ services:
     container_name: traffic-service
     ports:
       - "8001:8001"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
     environment:
       DB_HOST: mysql_db
       DB_PORT: 3306
@@ -192,6 +213,7 @@ services:
       RABBITMQ_PORT: 5672
       RABBITMQ_USER: guest
       RABBITMQ_PASSWORD: guest
+      TZ: Asia/Jakarta
     depends_on:
       mysql_db:
         condition: service_healthy
@@ -206,6 +228,8 @@ services:
       context: ./php-traffic
       dockerfile: Dockerfile.worker
     container_name: traffic-worker
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
     environment:
       DB_HOST: mysql_db
       DB_PORT: 3306
@@ -216,6 +240,7 @@ services:
       RABBITMQ_PORT: 5672
       RABBITMQ_USER: guest
       RABBITMQ_PASSWORD: guest
+      TZ: Asia/Jakarta
     depends_on:
       mysql_db:
         condition: service_healthy
@@ -226,7 +251,7 @@ services:
     restart: unless-stopped
 
   # ============================================================
-  # CITIZEN SERVICE (PHP CodeIgniter) - TANPA HEALTHCHECK
+  # CITIZEN SERVICE (PHP CodeIgniter)
   # ============================================================
 
   citizen-service:
@@ -236,6 +261,8 @@ services:
     container_name: citizen-service
     ports:
       - "8080:8080"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
     environment:
       CI_ENVIRONMENT: production
       database.default.hostname: mysql_db
@@ -251,6 +278,7 @@ services:
       RABBITMQ_PASSWORD: guest
       RABBITMQ_VHOST: /
       RABBITMQ_EXCHANGE: city.events
+      TZ: Asia/Jakarta
     depends_on:
       mysql_db:
         condition: service_healthy
@@ -271,6 +299,8 @@ services:
     container_name: python-ml
     ports:
       - "5001:5000"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
     environment:
       APP_ENV: production
       APP_PORT: 5000
@@ -286,6 +316,7 @@ services:
       DB_PASS: env_secret
       JWT_SECRET: ${JWT_ACCESS_SECRET:-accessrahasia_super_secret_min_32_chars}
       MODEL_PATH: models/smartcity_models.pkl
+      TZ: Asia/Jakarta
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -312,8 +343,10 @@ services:
       - "1880:1880"
     volumes:
       - ./iot/node-red-data:/data
+      - /etc/localtime:/etc/localtime:ro
     environment:
       - NODE_RED_ENABLE_SAFE_MODE=false
+      - TZ=Asia/Jakarta
     depends_on:
       - mosquitto
       - api-gateway
@@ -332,6 +365,7 @@ services:
       - "9090:9090"
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - /etc/localtime:/etc/localtime:ro
     networks:
       - smartcity-net
     restart: unless-stopped
@@ -345,6 +379,9 @@ services:
       - "3001:3000"
     volumes:
       - grafana_data:/var/lib/grafana
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      - TZ=Asia/Jakarta
     networks:
       - smartcity-net
     restart: unless-stopped
