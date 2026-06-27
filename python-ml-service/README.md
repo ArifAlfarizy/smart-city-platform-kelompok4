@@ -189,7 +189,7 @@ Pilihan:
 
 ---
 
-## 🌐 API Endpoints
+## API Endpoints
 
 | Method | Endpoint                         | Auth     |
 | ------ | -------------------------------- | -------- |
@@ -200,6 +200,8 @@ Pilihan:
 | GET    | /api/ml/recommendations/latest   | Operator |
 | GET    | /api/ml/model/feature-importance | JWT      |
 | POST   | /api/ml/analyze/batch            | JWT      |
+| POST   | /api/ml/predict/volume           | JWT      |
+| POST   | /api/ml/predict/incident-risk    | JWT      |
 
 ### Generate Token
 Beberapa endpoint memerlukan JWT Token dengan role `operator`.
