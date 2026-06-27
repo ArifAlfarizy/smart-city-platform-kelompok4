@@ -13,21 +13,31 @@ class JwtFilter implements FilterInterface
         $authHeader = $request->getHeaderLine('Authorization');
 
         if (!$authHeader || !preg_match('/Bearer\s+(.*)$/i', $authHeader, $matches)) {
-            return $this->jsonError('Access denied. No token provided.', 401);
+            return service('response')
+                ->setStatusCode(401)
+                ->setJSON([
+                    'status'  => 'error',
+                    'message' => 'Access denied. No token provided.'
+                ]);
         }
 
         $token = trim($matches[1]);
 
         if ($token === '' || !$this->isValidJwt($token)) {
-            return $this->jsonError('Invalid token.', 403);
+            return service('response')
+                ->setStatusCode(403)
+                ->setJSON([
+                    'status'  => 'error',
+                    'message' => 'Invalid token.'
+                ]);
         }
 
-        return null;
+        return $request;
     }
 
     public function after(RequestInterface $request, ResponseInterface $response, $arguments = null)
     {
-        return null;
+        return $response;
     }
 
     private function isValidJwt(string $token): bool
@@ -95,14 +105,5 @@ class JwtFilter implements FilterInterface
     private function base64UrlEncode(string $input): string
     {
         return rtrim(strtr(base64_encode($input), '+/', '-_'), '=');
-    }
-
-    private function jsonError(string $message, int $statusCode)
-    {
-        $response = service('response');
-        return $response->setStatusCode($statusCode)->setJSON([
-            'status'  => 'error',
-            'message' => $message,
-        ]);
     }
 }
