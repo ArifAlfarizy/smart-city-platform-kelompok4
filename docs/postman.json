@@ -1,0 +1,1117 @@
+{
+  "info": {
+    "name": "Smart City Platform - Complete Collection",
+    "_postman_id": "smart-city-platform-v1",
+    "description": "Koleksi lengkap API Smart City Platform\n\nService yang tersedia:\n- Auth Service (Port 3002) - OAuth 2.0 Server\n- API Gateway (Port 3000)\n- Environment Service (Port 8002)\n- Traffic Service (Port 8001)\n- Citizen Service (Port 8080)\n- ML Service (Port 5001)\n\nCara penggunaan:\n1. Register user terlebih dahulu\n2. Login untuk mendapatkan token\n3. Set token ke variable environment 'token'\n4. Testing endpoints dengan Bearer token\n\nGrant Types:\n- password: Login user (citizen/operator)\n- refresh_token: Perpanjang token expired\n- client_credentials: IoT / Service-to-Service",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string",
+      "description": "URL API Gateway (port 3000)"
+    },
+    {
+      "key": "authUrl",
+      "value": "http://localhost:3002",
+      "type": "string",
+      "description": "URL Auth Service - OAuth 2.0 Server (port 3002)"
+    },
+    {
+      "key": "envUrl",
+      "value": "http://localhost:8002",
+      "type": "string",
+      "description": "URL Environment Service (port 8002)"
+    },
+    {
+      "key": "trafficUrl",
+      "value": "http://localhost:8001",
+      "type": "string",
+      "description": "URL Traffic Service (port 8001)"
+    },
+    {
+      "key": "citizenUrl",
+      "value": "http://localhost:8080",
+      "type": "string",
+      "description": "URL Citizen Service (port 8080)"
+    },
+    {
+      "key": "mlUrl",
+      "value": "http://localhost:5001",
+      "type": "string",
+      "description": "URL ML Service (port 5001)"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string",
+      "description": "JWT Bearer token untuk citizen"
+    },
+    {
+      "key": "operatorToken",
+      "value": "",
+      "type": "string",
+      "description": "JWT Bearer token untuk operator"
+    },
+    {
+      "key": "refreshToken",
+      "value": "",
+      "type": "string",
+      "description": "Refresh token untuk perpanjang sesi"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Authentication & OAuth 2.0",
+      "description": "Endpoint untuk autentikasi menggunakan OAuth 2.0",
+      "item": [
+        {
+          "name": "1.1 Register - Citizen",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Doe\",\n  \"email\": \"john@test.com\",\n  \"password\": \"password123\",\n  \"role\": \"citizen\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.2 Register - Operator",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Operator\",\n  \"email\": \"operator@test.com\",\n  \"password\": \"password123\",\n  \"role\": \"operator\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.3 Login - Citizen (Password Grant)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john@test.com\",\n  \"password\": \"password123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.4 Login - Operator (Password Grant)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"operator@test.com\",\n  \"password\": \"password123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.5 OAuth Token - Password Grant (via /oauth/token)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"grant_type\": \"password\",\n  \"email\": \"john@test.com\",\n  \"password\": \"password123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{authUrl}}/oauth/token",
+              "host": ["{{authUrl}}"],
+              "path": ["oauth", "token"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.6 OAuth Token - Refresh Token Grant",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"grant_type\": \"refresh_token\",\n  \"refresh_token\": \"{{refreshToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{authUrl}}/oauth/token",
+              "host": ["{{authUrl}}"],
+              "path": ["oauth", "token"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.7 OAuth Token - Client Credentials (IoT)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"grant_type\": \"client_credentials\",\n  \"client_id\": \"iot-environment-device\",\n  \"client_secret\": \"iot_secret\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{authUrl}}/oauth/token",
+              "host": ["{{authUrl}}"],
+              "path": ["oauth", "token"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.8 OAuth Introspect - Validate Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{token}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{authUrl}}/oauth/introspect",
+              "host": ["{{authUrl}}"],
+              "path": ["oauth", "introspect"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.9 OAuth Revoke - Revoke Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refreshToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{authUrl}}/oauth/revoke",
+              "host": ["{{authUrl}}"],
+              "path": ["oauth", "revoke"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2. Health Checks",
+      "description": "Health check semua service",
+      "item": [
+        {
+          "name": "2.1 API Gateway Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2.2 Auth Service Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{authUrl}}/health",
+              "host": ["{{authUrl}}"],
+              "path": ["health"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2.3 Environment Service Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{envUrl}}/health",
+              "host": ["{{envUrl}}"],
+              "path": ["health"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2.4 Traffic Service Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{trafficUrl}}/health",
+              "host": ["{{trafficUrl}}"],
+              "path": ["health"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2.5 ML Service Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{mlUrl}}/health",
+              "host": ["{{mlUrl}}"],
+              "path": ["health"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. Environment Service",
+      "description": "Endpoint untuk monitoring lingkungan",
+      "item": [
+        {
+          "name": "3.1 POST Sensor Data - Normal",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sensor_id\": \"ESP32-A-01\",\n  \"rainfall\": 5.0,\n  \"water_level\": 3.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/environment/sensor",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "environment", "sensor"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3.2 POST Sensor Data - High Rainfall (Trigger Alert)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sensor_id\": \"ESP32-B-01\",\n  \"rainfall\": 45.2,\n  \"water_level\": 12.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/environment/sensor",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "environment", "sensor"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3.3 POST Sensor Data - Critical Flood (Trigger Alert)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sensor_id\": \"ESP32-C-01\",\n  \"rainfall\": 80.0,\n  \"water_level\": 75.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/environment/sensor",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "environment", "sensor"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3.4 GET Current Environment Data",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/environment/current",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "environment", "current"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3.5 GET Environment History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/environment/history?limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "environment", "history"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3.6 GET Flood Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/environment/flood-status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "environment", "flood-status"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3.7 GET Alerts - Active",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/environment/alerts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "environment", "alerts"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3.8 GET Alert Detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/environment/alerts/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "environment", "alerts", "1"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3.9 PUT Resolve Alert - Operator Only",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{operatorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/environment/alerts/1/resolve",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "environment", "alerts", "1", "resolve"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4. Traffic Service",
+      "description": "Endpoint untuk manajemen data lalu lintas",
+      "item": [
+        {
+          "name": "4.1 POST Traffic Data",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"road_name\": \"Jalan MT Haryono\",\n  \"vehicle_count\": 150,\n  \"average_speed\": 12.5,\n  \"congestion_level\": \"Macet\",\n  \"observation_time\": \"2026-06-27 08:00:00\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/traffic-data",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "traffic-data"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "4.2 GET Traffic Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/traffic-status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "traffic-status"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "4.3 GET Traffic History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/traffic-history",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "traffic-history"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "4.4 GET Traffic Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/traffic-summary",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "traffic-summary"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "4.5 POST Create Incident - Operator Only",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{operatorToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"road_name\": \"Jalan MT Haryono\",\n  \"incident_type\": \"accident\",\n  \"description\": \"Kecelakaan beruntun di dekat stasiun Cawang\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/traffic/incidents",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "traffic", "incidents"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "4.6 GET All Incidents - Operator Only",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{operatorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/traffic/incidents",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "traffic", "incidents"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "4.7 PUT Resolve Incident - Operator Only",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{operatorToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"resolved\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/traffic/incidents/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "traffic", "incidents", "1"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "5. Citizen Service",
+      "description": "Endpoint untuk manajemen warga dan laporan",
+      "item": [
+        {
+          "name": "5.1 GET Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/citizens/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "citizens", "profile"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "5.2 PUT Update Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Doe Updated\",\n  \"phone\": \"081234567890\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/citizens/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "citizens", "profile"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "5.3 POST Create Report",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"road_name\": \"Jalan MT Haryono\",\n  \"category\": \"accident\",\n  \"description\": \"Kecelakaan di Simpang Cawang\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/citizens/reports",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "citizens", "reports"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "5.4 GET My Reports",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/citizens/reports",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "citizens", "reports"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "5.5 GET Notifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/citizens/notifications",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "citizens", "notifications"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "5.6 GET All Reports - Operator Only",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{operatorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/citizens/reports/all",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "citizens", "reports", "all"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "5.7 PUT Update Report Status - Operator Only",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{operatorToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"completed\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/citizens/reports/1/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "citizens", "reports", "1", "status"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "6. ML Service",
+      "description": "Endpoint untuk machine learning dan analisis",
+      "item": [
+        {
+          "name": "6.1 POST Analyze Traffic",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vehicle_count\": 1200,\n  \"average_speed\": 18.5,\n  \"rainfall\": 35.0,\n  \"water_level\": 420.0,\n  \"incident_count\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/ml/analyze",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ml", "analyze"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "6.2 GET Model Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ml/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ml", "status"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "6.3 GET Feature Importance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ml/model/feature-importance",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ml", "model", "feature-importance"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "6.4 GET Latest Recommendations - Operator Only",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{operatorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ml/recommendations/latest",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ml", "recommendations", "latest"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "6.5 POST Batch Analyze",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"vehicle_count\": 1200,\n      \"average_speed\": 18.5,\n      \"rainfall\": 35.0,\n      \"water_level\": 420.0,\n      \"incident_count\": 1\n    },\n    {\n      \"vehicle_count\": 800,\n      \"average_speed\": 25.0,\n      \"rainfall\": 10.0,\n      \"water_level\": 200.0,\n      \"incident_count\": 0\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/ml/analyze/batch",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ml", "analyze", "batch"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "7. Dashboard",
+      "description": "Dashboard agregasi data dari semua service",
+      "item": [
+        {
+          "name": "7.1 GET Dashboard - Aggregated",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/dashboard",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dashboard"]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ]
+}
