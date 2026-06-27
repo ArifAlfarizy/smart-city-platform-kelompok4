@@ -1,0 +1,51 @@
+[33m0281011[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Merge pull request #31 from ArifAlfarizy/gateway2/ratelimit
+[33md6f1f50[m[33m ([m[1;31morigin/gateway2/ratelimit[m[33m)[m refactor: change logger to middleware, and fix minor bugs
+[33mae114b1[m feat: logger
+[33mf8d7010[m feat: creating rate limit middleware
+[33ma9bd4f2[m Merge pull request #30 from ArifAlfarizy/feat/traffic-service
+[33m5ad34d8[m[33m ([m[1;31morigin/feat/traffic-service[m[33m)[m docs(traffic): update complete README with deployment guides and integration details
+[33m8c369fc[m feat(traffic): integrate RabbitMQ publisher for asynchronous traffic event streaming
+[33md0a6f3c[m Merge pull request #29 from ArifAlfarizy/feat/traffic-service
+[33m5ce51ff[m feat(traffic): complete REST API controllers and routing for traffics and incidents management, add README
+[33m210e16a[m Merge pull request #28 from ArifAlfarizy/update/iot
+[33mc34d672[m[33m ([m[1;31morigin/update/iot[m[33m)[m Merge branch 'main' into update/iot
+[33ma504758[m chores: update sensor IoT
+[33mdf26ab8[m Merge pull request #27 from ArifAlfarizy/feat/ml-service
+[33m4d62e55[m Merge pull request #26 from ArifAlfarizy/gateway
+[33ma5c9f7e[m[33m ([m[1;31morigin/gateway[m[33m)[m feat: oauth service to gateway, token verify for revoking refresh token for users
+[33m7cc2273[m chore: add auth service to gateway
+[33ma06bfdc[m Merge pull request #25 from ArifAlfarizy/feat/ml-service
+[33m05e456b[m Merge pull request #24 from ArifAlfarizy/feat/ml-service
+[33m4c0c0f6[m Merge pull request #23 from ArifAlfarizy/readme/iot
+[33m743acff[m[33m ([m[1;31morigin/readme/iot[m[33m)[m chore: add readme IOT
+[33m0ca43c6[m Merge pull request #22 from ArifAlfarizy/update/dbiot
+[33mcf0e757[m[33m ([m[1;31morigin/update/dbiot[m[33m)[m chore: update iot db
+[33mdb091c2[m[33m ([m[1;31morigin/update/db[m[33m)[m update: update db
+[33mfc2b61e[m Merge pull request #21 from ArifAlfarizy/oauth/part2
+[33m4f9fbcd[m[33m ([m[1;31morigin/oauth/part2[m[33m)[m feat: refresh token, revoke, client_credentials
+[33m09d6c64[m Merge pull request #20 from ArifAlfarizy/refactor/authmessage
+[33m8993cdb[m[33m ([m[1;31morigin/refactor/authmessage[m[33m)[m refactor: change responses
+[33mcea3a66[m Merge pull request #19 from ArifAlfarizy/feat/citizen-service
+[33m5a68dd0[m Merge pull request #18 from ArifAlfarizy/feat/traffic-service
+[33m82053da[m feat(schema): sql schema adjusment
+[33md695347[m[33m ([m[1;31morigin/iot/env[m[33m)[m update readme + database
+[33mcc03cf7[m Merge pull request #17 from ArifAlfarizy/add/iot
+[33m201d6f0[m[33m ([m[1;31morigin/add/iot[m[33m)[m feat: add iot
+[33m930a2c4[m Merge pull request #16 from ArifAlfarizy/iot/env
+[33mbe53f02[m Iot and Environtment role 4
+[33m5256771[m feat(traffic): implement TrafficData and Incident models for database operations
+[33mbb139ba[m Merge pull request #15 from ArifAlfarizy/oauth/crypto
+[33m91b1b03[m[33m ([m[1;31morigin/oauth/crypto[m[33m)[m refactor: use crypto to generate and hash refresh token
+[33mb31a453[m Merge pull request #14 from ArifAlfarizy/oauth/refactor
+[33me2a0763[m[33m ([m[1;31morigin/oauth/refactor[m[33m)[m refactor: dynamic grant_type input
+[33mf373dfd[m Merge pull request #13 from ArifAlfarizy/auth/oauth
+[33m33fa126[m[33m ([m[1;31morigin/auth/oauth[m[33m)[m feat: grantPassword oauth
+[33m5c9f666[m Merge pull request #12 from ArifAlfarizy/refactor/auth
+[33m33a0327[m[33m ([m[1;31morigin/refactor/auth[m[33m)[m refactor: change oaut to auth
+[33m03be099[m feat(traffic): setup basic PHP MVC folder structure, env configuration, and base database connection
+[33m0a4add6[m feat(database): add traffic_data and incidents tables with seed data
+[33m996d0e4[m Merge pull request #11 from ArifAlfarizy/feat/ml-service
+[33mda6e62e[m[33m ([m[1;31morigin/feat/citizen-service[m[33m)[m feat:implement citizen service CRUD endpoints
+[33m72e0287[m feat: add citizens models
+[33m89be681[m feat: add citizen schema + seed
+[33m8165ba9[m feat: initialize citizen service witj ci4
