@@ -38,6 +38,31 @@ class Validation extends BaseConfig
         'single' => 'CodeIgniter\Validation\Views\single',
     ];
 
+    public array $report = [
+
+    'road_name' => [
+        'rules' => 'required|max_length[100]',
+        'errors' => [
+            'required' => 'Road name wajib diisi.'
+        ]
+
+    ],
+    'category' => [
+        'rules' => 'required|in_list[accident,broken_vehicle,fallen_tree,flood,road_obstacle,traffic_light_damage]',
+        'errors' => [
+            'required' => 'Kategori wajib diisi.',
+            'in_list' => 'Kategori tidak valid.'
+        ]
+
+    ],
+    'description' => [
+        'rules' => 'required',
+        'errors' => [
+            'required' => 'Deskripsi wajib diisi.'
+        ]
+    ]
+];
+
     // --------------------------------------------------------------------
     // Rules
     // --------------------------------------------------------------------

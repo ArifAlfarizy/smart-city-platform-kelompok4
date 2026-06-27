@@ -1,4 +1,4 @@
-import { findUserByEmail } from "../models/userModel.js";
+import { findUserByEmail, findUserById } from "../models/userModel.js";
 import {
   insertToken,
   findRefreshToken,
@@ -6,7 +6,9 @@ import {
   revokeAllUserTokens,
   insertRevokedToken,
   findClientById,
+  isTokenRevoked,
 } from "../models/tokenModel.js";
+
 import {
   generateAccessToken,
   generateClientToken,
@@ -128,7 +130,6 @@ const refreshTokenGrant = async (req, res) => {
       });
     }
 
-    const { findUserById } = await import("../models/userModel.js");
     const user = await findUserById(record.user_id);
 
     if (!user) {
@@ -250,6 +251,117 @@ export const revoke = async (req, res) => {
     return res
       .status(500)
       .json({ success: false, message: "Internal Server Error" });
+  }
+};
+
+// Introspect
+export const introspect = async (req, res) => {
+  try {
+    const { token, token_type_hint } = req.body;
+
+    // Validasi input
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        error: "invalid_request",
+        error_description: "Token parameter is required",
+      });
+    }
+
+    let decoded = null;
+    let tokenType = null;
+    let isActive = false;
+    let response = {
+      active: false,
+    };
+
+    try {
+      decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+      tokenType = "access_token";
+      isActive = true;
+
+      // Check if token is revoked (for client credentials)
+      if (decoded.jti) {
+        const revoked = await isTokenRevoked(decoded.jti);
+        if (revoked) {
+          isActive = false;
+        }
+      }
+
+      // Check expiration (already handled by jwt.verify)
+      // But double check just in case
+      if (decoded.exp && Date.now() >= decoded.exp * 1000) {
+        isActive = false;
+      }
+    } catch (error) {
+      if (
+        error.name === "JsonWebTokenError" ||
+        error.name === "TokenExpiredError"
+      ) {
+        try {
+          const hashed = hashToken(token);
+          const refreshRecord = await findRefreshToken(hashed);
+
+          if (refreshRecord) {
+            tokenType = "refresh_token";
+            isActive = true;
+
+            // Get user info
+            const user = await findUserById(refreshRecord.user_id);
+            if (user) {
+              response = {
+                active: true,
+                client_id: "refresh_token",
+                user_id: user.id,
+                email: user.email,
+                role: user.role,
+                token_type: "refresh_token",
+                expires_at: refreshRecord.expires_at,
+              };
+            }
+          }
+        } catch (refreshError) {
+          isActive = false;
+        }
+      }
+    }
+
+    if (isActive && decoded && tokenType === "access_token") {
+      let user = null;
+      if (decoded.id) {
+        user = await findUserById(decoded.id);
+      }
+
+      response = {
+        active: true,
+        client_id: decoded.client_id || "unknown",
+        user_id: decoded.id || null,
+        email: decoded.email || user?.email || null,
+        role: decoded.role || user?.role || "citizen",
+        token_type: "access_token",
+        exp: decoded.exp,
+        iat: decoded.iat,
+        scope: decoded.scope || "basic",
+        sub: decoded.sub || decoded.email || null,
+      };
+
+      if (decoded.client_id) {
+        const client = await findClientById(decoded.client_id);
+        if (client) {
+          response.client_name = client.client_id;
+          response.grant_types = client.grant_types;
+        }
+      }
+    }
+
+    return res.status(200).json(response);
+  } catch (error) {
+    console.error("Introspection error:", error);
+    return res.status(500).json({
+      active: false,
+      error: "server_error",
+      error_description: "Internal server error during token introspection",
+    });
   }
 };
 

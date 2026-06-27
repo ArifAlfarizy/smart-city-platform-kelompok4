@@ -12,7 +12,16 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN python preprocess.py && python train_models.py
+# TRAINING 3 MODELS
+
+# Model 1 — Congestion Classifier (existing)
+RUN python generate_dataset.py && python train_models.py
+
+# Model 2 — Volume Predictor
+RUN python generate_volume_dataset.py && python train_volume_model.py
+
+# Model 3 — Incident Risk Predictor
+RUN python generate_risk_dataset.py && python train_risk_model.py
 
 EXPOSE 5000
 
