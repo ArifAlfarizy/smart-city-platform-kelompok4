@@ -71,7 +71,7 @@ Semua request publik masuk lewat **API Gateway** (`:3000`). Gateway yang melakuk
 
 1. **Clone repository**
    ```bash
-   git clone <url-repo-anda>
+   git clone https://github.com/ArifAlfarizy/smart-city-platform-kelompok4
    cd smart-city-platform-kelompok4
    ```
 
