@@ -1056,6 +1056,68 @@
             }
           },
           "response": []
+        },
+        {
+          "name": "6.6 POST Predict Volume",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hour\": 8,\n  \"day_of_week\": 1,\n  \"rainfall\": 5.0,\n  \"water_level\": 200.0,\n  \"incident_count\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/ml/predict/volume",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ml", "predict", "volume"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "6.7 POST Predict Incident Risk",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vehicle_count\": 1200,\n  \"average_speed\": 18.5,\n  \"rainfall\": 35.0,\n  \"water_level\": 420.0,\n  \"hour\": 8,\n  \"day_of_week\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/ml/predict/incident-risk",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ml", "predict", "incident-risk"]
+            }
+          },
+          "response": []
         }
       ]
     },

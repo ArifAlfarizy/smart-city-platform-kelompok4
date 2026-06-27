@@ -316,6 +316,8 @@ services:
       DB_PASS: env_secret
       JWT_SECRET: ${JWT_ACCESS_SECRET:-accessrahasia_super_secret_min_32_chars}
       MODEL_PATH: models/smartcity_models.pkl
+      VOLUME_MODEL_PATH: models/volume_model.pkl
+      RISK_MODEL_PATH: models/risk_model.pkl
       TZ: Asia/Jakarta
     depends_on:
       rabbitmq:
