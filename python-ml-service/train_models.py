@@ -109,7 +109,7 @@ def main():
     # Simpan
     out = os.path.join(MODELS_DIR, "smartcity_models.pkl")
     joblib.dump(bundle, out)
-    print(f"\n✓ Model saved → {out}")
+    print(f"\nModel saved → {out}")
     
     m = bundle["congestion"]["metrics"]
     print(f"\n── Ringkasan ──")
