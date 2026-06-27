@@ -69,6 +69,8 @@ DB_PASS=rootpass
 JWT_SECRET=accessrahasia
 
 MODEL_PATH=models/smartcity_models.pkl
+VOLUME_MODEL_PATH=models/volume_model.pkl
+RISK_MODEL_PATH=models/risk_model.pkl
 ```
 ---
 
@@ -131,11 +133,11 @@ uvicorn main:app --reload --port 5000
 Output:
 
 ```text
-✓ Model loaded: ['congestion']
+Model loaded: ['congestion']
 
-✓ Started: traffic-consumer
-✓ Started: environment-consumer
-✓ Started: incident-consumer
+Started: traffic-consumer
+Started: environment-consumer
+Started: incident-consumer
 ```
 
 Swagger:
