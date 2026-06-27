@@ -36,12 +36,27 @@ security = HTTPBearer()
 
 # Load Model
 MODEL_PATH = os.getenv("MODEL_PATH", "models/smartcity_models.pkl")
+VOLUME_MODEL_PATH = os.getenv("VOLUME_MODEL_PATH", "models/volume_model.pkl")
+RISK_MODEL_PATH = os.getenv("RISK_MODEL_PATH", "models/risk_model.pkl")
+
+BUNDLE = {}
 try:
-    BUNDLE = joblib.load(MODEL_PATH)
-    logger.info(f"✓ Model loaded: {list(BUNDLE.keys())}")
-except FileNotFoundError:
-    logger.warning("⚠️ Model not found. Run: python train_models.py")
-    BUNDLE = {}
+    BUNDLE["congestion"] = joblib.load(MODEL_PATH)
+    logger.info(f"Congestion model loaded: {MODEL_PATH}")
+except:
+    logger.warning("Congestion model not found")
+
+try:
+    BUNDLE["volume"] = joblib.load(VOLUME_MODEL_PATH)
+    logger.info(f"Volume model loaded: {VOLUME_MODEL_PATH}")
+except:
+    logger.warning("Volume model not found")
+
+try:
+    BUNDLE["risk"] = joblib.load(RISK_MODEL_PATH)
+    logger.info(f"Risk model loaded: {RISK_MODEL_PATH}")
+except:
+    logger.warning("Risk model not found")
 
 # RabbitMQ Consumers
 from consumers.traffic_consumer import start_traffic_consumer
@@ -170,6 +185,21 @@ class BatchAnalysisItem(BaseModel):
     rainfall: float = 0.0
     water_level: float = 200.0
     incident_count: int = 0
+
+class VolumeIn(BaseModel):
+    hour: int = Field(..., ge=0, le=23)
+    day_of_week: int = Field(..., ge=0, le=6)
+    rainfall: float = Field(0.0, ge=0)
+    water_level: float = Field(200.0, ge=0)
+    incident_count: int = Field(0, ge=0)
+
+class IncidentRiskIn(BaseModel):
+    vehicle_count: int = Field(..., ge=0)
+    average_speed: float = Field(..., ge=0)
+    rainfall: float = Field(0.0, ge=0)
+    water_level: float = Field(200.0, ge=0)
+    hour: int = Field(..., ge=0, le=23)
+    day_of_week: int = Field(..., ge=0, le=6)
 
 class BatchIn(BaseModel):
     items: List[BatchAnalysisItem]
@@ -351,3 +381,52 @@ def analyze_batch(body: BatchIn, _=Depends(verify_jwt)):
     
     return ok({"results": results, "count": len(results)},
               f"Batch analysis selesai: {len(results)} item")
+
+@app.post("/api/ml/predict/volume")
+def predict_volume(body: VolumeIn, _=Depends(verify_jwt)):
+    if "volume" not in BUNDLE:
+        return err(503, "Volume model belum tersedia")
+    
+    b = BUNDLE["volume"]
+    X = b["scaler"].transform([[
+        body.hour,
+        body.day_of_week,
+        body.rainfall,
+        body.water_level,
+        body.incident_count
+    ]])
+    
+    predicted = float(b["model"].predict(X)[0])
+    predicted = max(0, int(round(predicted)))
+    
+    return ok({
+        "predicted_vehicle_count": predicted,
+        "hour": body.hour,
+        "day_of_week": body.day_of_week
+    }, "Prediksi volume berhasil")
+
+@app.post("/api/ml/predict/incident-risk")
+def predict_incident_risk(body: IncidentRiskIn, _=Depends(verify_jwt)):
+    if "risk" not in BUNDLE:
+        return err(503, "Incident risk model belum tersedia")
+    
+    b = BUNDLE["risk"]
+    X = b["scaler"].transform([[
+        body.vehicle_count,
+        body.average_speed,
+        body.rainfall,
+        body.water_level,
+        body.hour,
+        body.day_of_week
+    ]])
+    
+    pred = b["model"].predict(X)[0]
+    proba = b["model"].predict_proba(X)[0]
+    label = b["label_encoder"].inverse_transform([pred])[0]
+    confidence = float(proba.max())
+    
+    return ok({
+        "risk_level": label,
+        "confidence": round(confidence, 4),
+        "probabilities": dict(zip(b["classes"], [round(float(p), 4) for p in proba]))
+    }, "Prediksi risiko insiden berhasil")
