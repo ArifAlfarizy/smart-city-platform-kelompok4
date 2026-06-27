@@ -3,6 +3,15 @@
 use CodeIgniter\Router\RouteCollection;
 
 /** @var RouteCollection $routes */
+$routes->get('/health', function() {
+    return service('response')
+        ->setStatusCode(200)
+        ->setJSON([
+            'status' => 'ok',
+            'service' => 'citizen-service',
+            'timestamp' => date('c')
+        ]);
+});
 $routes->get('/', 'Home::index');
 
 $routes->group('api/citizens', ['filter' => 'jwt'], function ($routes) {
