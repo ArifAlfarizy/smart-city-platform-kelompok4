@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: traffic-service
+  namespace: smartcity
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: traffic-service
+
+  template:
+    metadata:
+      labels:
+        app: traffic-service
+
+    spec:
+      containers:
+      - name: traffic-service
+
+        image: smart-city-platform-kelompok4-traffic-service
+        imagePullPolicy: Never
+
+        ports:
+        - containerPort: 8001
+
+        env:
+        - name: DB_HOST
+          value: mysql
+
+        - name: DB_PORT
+          value: "3306"
+
+        - name: DB_NAME
+          value: smartcity
+
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: smart-city-secret
+              key: MYSQL_USER
+
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: smart-city-secret
+              key: MYSQL_PASSWORD
+
+        - name: RABBITMQ_HOST
+          value: rabbitmq
+
+        - name: RABBITMQ_PORT
+          value: "5672"
+
+        - name: RABBITMQ_USER
+          value: guest
+
+        - name: RABBITMQ_PASSWORD
+          value: guest
+
+        - name: TZ
+          value: Asia/Jakarta
+
+---
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: traffic-service
+  namespace: smartcity
+
+spec:
+  selector:
+    app: traffic-service
+
+  ports:
+  - port: 8001
+    targetPort: 8001
+
+  type: ClusterIP

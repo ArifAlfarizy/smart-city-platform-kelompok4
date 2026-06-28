@@ -59,9 +59,9 @@ class RabbitMQConsumer {
             
             $data = json_decode($msg->body, true);
 
-            if (isset($data['road_name']) && isset($data['incident_type'])) {
+            if (isset($data['road_name']) && isset($data['category'])) {
                 $road_name = $data['road_name'];
-                $incident_type = $data['incident_type'];
+                $incident_type = $data['category'];
                 $description = $data['description'] ?? 'Laporan otomatis dari aduan warga via Citizen Service';
 
                 // Simpan otomatis ke tabel incidents

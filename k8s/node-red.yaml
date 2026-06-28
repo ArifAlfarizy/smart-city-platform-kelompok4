@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: node-red
+  namespace: smartcity
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: node-red
+
+  template:
+    metadata:
+      labels:
+        app: node-red
+
+    spec:
+      containers:
+      - name: node-red
+
+        image: nodered/node-red:3.1
+
+        ports:
+        - containerPort: 1880
+
+        env:
+
+        - name: NODE_RED_ENABLE_SAFE_MODE
+          value: "false"
+
+        - name: TZ
+          value: Asia/Jakarta
+
+---
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: node-red
+  namespace: smartcity
+
+spec:
+
+  selector:
+    app: node-red
+
+  ports:
+  - port: 1880
+    targetPort: 1880
+
+  type: ClusterIP

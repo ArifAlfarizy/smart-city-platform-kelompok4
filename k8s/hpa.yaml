@@ -1,32 +1,76 @@
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: python-ml-hpa
+  name: api-gateway-hpa
   namespace: smartcity
+
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: python-ml
+    name: api-gateway
+
   minReplicas: 1
-  maxReplicas: 5
+  maxReplicas: 3
+
   metrics:
     - type: Resource
       resource:
         name: cpu
         target:
           type: Utilization
-          averageUtilization: 70   # scale up kalau CPU > 70%
+          averageUtilization: 70
+
   behavior:
     scaleUp:
-      stabilizationWindowSeconds: 30   # tunggu 30 detik sebelum scale up
+      stabilizationWindowSeconds: 30
       policies:
         - type: Pods
           value: 2
-          periodSeconds: 60            # tambah max 2 pod per menit
+          periodSeconds: 60
+
     scaleDown:
-      stabilizationWindowSeconds: 120  # tunggu 2 menit sebelum scale down
+      stabilizationWindowSeconds: 120
       policies:
         - type: Pods
           value: 1
-          periodSeconds: 60            # kurangi max 1 pod per menit
+          periodSeconds: 60
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: python-ml-hpa
+  namespace: smartcity
+
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: python-ml
+
+  minReplicas: 1
+  maxReplicas: 5
+
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+
+    scaleDown:
+      stabilizationWindowSeconds: 120
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60

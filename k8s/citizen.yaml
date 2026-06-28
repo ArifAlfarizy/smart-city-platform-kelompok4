@@ -1,0 +1,116 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: citizen-service
+  namespace: smartcity
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: citizen-service
+
+  template:
+    metadata:
+      labels:
+        app: citizen-service
+
+    spec:
+      containers:
+      - name: citizen-service
+
+        image: smart-city-platform-kelompok4-citizen-service
+        imagePullPolicy: Never
+
+        ports:
+        - containerPort: 8080
+
+        env:
+
+        - name: CI_ENVIRONMENT
+          value: production
+
+        - name: database.default.hostname
+          value: mysql
+
+        - name: database.default.database
+          value: smartcity
+
+        - name: database.default.username
+          valueFrom:
+            secretKeyRef:
+              name: smart-city-secret
+              key: MYSQL_USER
+
+        - name: database.default.password
+          valueFrom:
+            secretKeyRef:
+              name: smart-city-secret
+              key: MYSQL_PASSWORD
+
+        - name: database.default.DBDriver
+          value: MySQLi
+
+        - name: database.default.port
+          value: "3306"
+
+        - name: JWT_ACCESS_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: smart-city-secret
+              key: JWT_ACCESS_SECRET
+
+        - name: RABBITMQ_HOST
+          value: rabbitmq
+
+        - name: RABBITMQ_PORT
+          value: "5672"
+
+        - name: RABBITMQ_USER
+          value: guest
+
+        - name: RABBITMQ_PASSWORD
+          value: guest
+
+        - name: RABBITMQ_VHOST
+          value: "/"
+
+        - name: RABBITMQ_EXCHANGE
+          value: city.events
+
+        - name: TZ
+          value: Asia/Jakarta
+
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 20
+          periodSeconds: 10
+
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 40
+          periodSeconds: 20
+
+---
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: citizen-service
+  namespace: smartcity
+
+spec:
+
+  selector:
+    app: citizen-service
+
+  ports:
+  - port: 8080
+    targetPort: 8080
+
+  type: ClusterIP

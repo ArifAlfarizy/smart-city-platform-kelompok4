@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: traffic-worker
+  namespace: smartcity
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: traffic-worker
+
+  template:
+    metadata:
+      labels:
+        app: traffic-worker
+
+    spec:
+      containers:
+      - name: traffic-worker
+
+        image: smart-city-platform-kelompok4-traffic-worker
+        imagePullPolicy: Never
+
+        env:
+        - name: DB_HOST
+          value: mysql
+
+        - name: DB_PORT
+          value: "3306"
+
+        - name: DB_NAME
+          value: smartcity
+
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: smart-city-secret
+              key: MYSQL_USER
+
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: smart-city-secret
+              key: MYSQL_PASSWORD
+
+        - name: RABBITMQ_HOST
+          value: rabbitmq
+
+        - name: RABBITMQ_PORT
+          value: "5672"
+
+        - name: RABBITMQ_USER
+          value: guest
+
+        - name: RABBITMQ_PASSWORD
+          value: guest
+
+        - name: TZ
+          value: Asia/Jakarta

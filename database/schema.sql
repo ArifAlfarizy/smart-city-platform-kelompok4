@@ -151,7 +151,7 @@ CREATE TABLE IF NOT EXISTS environment_alerts (
 
 CREATE TABLE IF NOT EXISTS ml_predictions (
     id               INT AUTO_INCREMENT PRIMARY KEY,
-    model_type       VARCHAR(50)   NOT NULL DEFAULT 'congestion',
+    model_type       ENUM('congestion', 'volume', 'risk', 'traffic', 'aqi', 'anomaly') NOT NULL DEFAULT 'congestion',
     zone             VARCHAR(100)  DEFAULT 'MT_Haryono',
     input_data       JSON          NOT NULL,
     result           JSON          NOT NULL,
