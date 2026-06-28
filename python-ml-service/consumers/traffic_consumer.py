@@ -1,95 +1,93 @@
 import json
 import logging
 import os
-import joblib
-import numpy as np
 import pika
 from datetime import datetime
+from recommendation_engine import generate_recommendations
 
 logger = logging.getLogger(__name__)
 
-EXCHANGE     = os.getenv("RABBITMQ_EXCHANGE", "city.events")
-QUEUE        = "traffic.sensor.received"
-ROUTING_KEY  = "traffic.sensor.received"
-MODEL_PATH   = os.getenv("MODEL_PATH", "models/smartcity_models.pkl")
+EXCHANGE = os.getenv("RABBITMQ_EXCHANGE", "city.events")
+QUEUE = "traffic.updated"
+ROUTING_KEY = "traffic.updated"
 
-# Zone mapping
-ZONE_MAP = {"A": 0, "B": 1, "C": 2, "D": 3,
-            "zone1": 0, "zone2": 1, "zone3": 2, "zone4": 3}
+# State cache — simpan data environment terakhir untuk dipakai di analisis traffic
+_last_env = {"rainfall": 0.0, "water_level": 200.0}
+_last_incident = {"incident_count": 0}
 
 
 def get_connection():
-    credentials = pika.PlainCredentials(
+    creds = pika.PlainCredentials(
         os.getenv("RABBITMQ_USER", "guest"),
-        os.getenv("RABBITMQ_PASS", "guest"),
+        os.getenv("RABBITMQ_PASS", "guest")
     )
     params = pika.ConnectionParameters(
         host=os.getenv("RABBITMQ_HOST", "rabbitmq"),
         port=int(os.getenv("RABBITMQ_PORT", 5672)),
-        credentials=credentials,
+        credentials=creds,
         heartbeat=600,
-        blocked_connection_timeout=300,
     )
     return pika.BlockingConnection(params)
 
 
-def process_traffic_event(event: dict, bundle: dict) -> dict:
-    b    = bundle["traffic"]
-    zone = event.get("zone", "A")
-    loc  = ZONE_MAP.get(str(zone).upper(), ZONE_MAP.get(zone, 0))
-
-    hour        = event.get("hour", datetime.now().hour)
-    day_of_week = event.get("day_of_week", datetime.now().weekday())
-    density     = float(event.get("vehicle_count", event.get("density", 30)))
-
-    X = b["scaler"].transform([[hour, day_of_week, 0, density, loc]])
-
-    predicted = float(b["model"].predict(X)[0])
-    level     = "Padat" if predicted > 80 else "Sedang" if predicted > 40 else "Lancar"
-
-    tree_preds = np.array([t.predict(X)[0] for t in b["model"].estimators_])
-    confidence = float(1 - (tree_preds.std() / (tree_preds.mean() + 1e-6)))
-    confidence = max(0.0, min(1.0, confidence))
-
-    return {
-        "zone":              zone,
-        "predicted_density": round(predicted, 1),
-        "congestion_level":  level,
-        "confidence":        round(confidence, 4),
-        "source_event":      "traffic.sensor.received",
-    }
-
-
-def start_traffic_consumer(bundle: dict, anomaly_publisher=None):
+def start_traffic_consumer(bundle: dict, rec_publisher=None):
     try:
-        conn    = get_connection()
-        channel = conn.channel()
+        conn = get_connection()
+        ch = conn.channel()
+        ch.exchange_declare(exchange=EXCHANGE, exchange_type="topic", durable=True)
+        ch.queue_declare(queue=QUEUE, durable=True)
+        ch.queue_bind(queue=QUEUE, exchange=EXCHANGE, routing_key=ROUTING_KEY)
+        ch.basic_qos(prefetch_count=1)
 
-        channel.exchange_declare(
-            exchange=EXCHANGE, exchange_type="topic", durable=True
-        )
-        channel.queue_declare(queue=QUEUE, durable=True)
-        channel.queue_bind(
-            queue=QUEUE, exchange=EXCHANGE, routing_key=ROUTING_KEY
-        )
-        channel.basic_qos(prefetch_count=1)
-
-        def callback(ch, method, properties, body):
+        def callback(ch, method, props, body):
             try:
-                event  = json.loads(body)
+                event = json.loads(body)
                 logger.info(f"[traffic_consumer] Received: {event}")
 
-                result = process_traffic_event(event, bundle)
-                logger.info(f"[traffic_consumer] Prediction: {result}")
+                if "congestion" not in bundle:
+                    ch.basic_ack(delivery_tag=method.delivery_tag)
+                    return
 
-                # Kalau macet padat, publish anomali
-                if result["congestion_level"] == "Padat" and anomaly_publisher:
-                    anomaly_publisher.publish_anomaly({
-                        "zone":         result["zone"],
-                        "anomaly_type": "traffic_congestion",
-                        "message":      f"Kemacetan padat terdeteksi di zona {result['zone']}",
-                        "severity":     "Peringatan",
-                        "data":         result,
+                b = bundle["congestion"]
+                vehicle_count = int(event.get("vehicle_count", 0))
+                average_speed = float(event.get("average_speed", 30))
+                rainfall = _last_env["rainfall"]
+                water_level = _last_env["water_level"]
+                incident_count = _last_incident["incident_count"]
+                now = datetime.now()
+
+                X = b["scaler"].transform([[
+                    vehicle_count, average_speed, rainfall,
+                    water_level, incident_count, now.hour, now.weekday()
+                ]])
+
+                pred = b["model"].predict(X)[0]
+                proba = b["model"].predict_proba(X)[0]
+                label = b["le"].inverse_transform([pred])[0]
+                conf = float(proba.max())
+
+                result = generate_recommendations(
+                    congestion_level=label,
+                    vehicle_count=vehicle_count,
+                    average_speed=average_speed,
+                    rainfall=rainfall,
+                    water_level=water_level,
+                    incident_count=incident_count,
+                    hour=now.hour,
+                    confidence=conf,
+                )
+
+                logger.info(
+                    f"[traffic_consumer] → {label} | {result['priority']} | "
+                    f"{len(result['recommendations'])} rekomendasi"
+                )
+
+                # Publish recommendation
+                if rec_publisher:
+                    rec_publisher.publish({
+                        "trigger": "traffic.updated",
+                        "road_name": event.get("road_name", "MT Haryono"),
+                        **result,
                     })
 
                 ch.basic_ack(delivery_tag=method.delivery_tag)
@@ -98,9 +96,9 @@ def start_traffic_consumer(bundle: dict, anomaly_publisher=None):
                 logger.error(f"[traffic_consumer] Error: {e}")
                 ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 
-        channel.basic_consume(queue=QUEUE, on_message_callback=callback)
+        ch.basic_consume(queue=QUEUE, on_message_callback=callback)
         logger.info(f"[traffic_consumer] Listening on {QUEUE}...")
-        channel.start_consuming()
+        ch.start_consuming()
 
     except Exception as e:
         logger.error(f"[traffic_consumer] Connection failed: {e}")

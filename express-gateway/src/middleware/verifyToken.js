@@ -1,7 +1,31 @@
 import jwt from "jsonwebtoken";
 import "dotenv/config";
 
-export const verifyToken = (req, res, next) => {
+const introspectToken = async (token) => {
+  try {
+    const authServiceUrl =
+      process.env.AUTH_SERVICE_URL || "http://localhost:3002";
+    const response = await fetch(`${authServiceUrl}/oauth/introspect`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ token }),
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("[Introspection] Error:", error.message);
+    return null;
+  }
+};
+
+export const verifyToken = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
 
@@ -19,10 +43,35 @@ export const verifyToken = (req, res, next) => {
       });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
-    req.user = decoded;
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+      req.user = decoded;
+      return next();
+    } catch (localError) {
+      console.log(
+        "[Gateway] Local JWT verification failed, trying introspection...",
+      );
 
-    next();
+      const introspectResult = await introspectToken(token);
+
+      if (!introspectResult || !introspectResult.active) {
+        return res.status(401).json({
+          error: "Invalid or expired token.",
+        });
+      }
+
+      req.user = {
+        id: introspectResult.user_id,
+        email: introspectResult.email,
+        role: introspectResult.role || "citizen",
+        client_id: introspectResult.client_id,
+        scope: introspectResult.scope,
+        exp: introspectResult.exp,
+        ...introspectResult,
+      };
+
+      return next();
+    }
   } catch (error) {
     if (error.name === "TokenExpiredError") {
       return res.status(401).json({

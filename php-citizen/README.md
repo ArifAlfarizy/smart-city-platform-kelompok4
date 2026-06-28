@@ -1,69 +1,239 @@
-# CodeIgniter 4 Application Starter
+# Citizen Service
 
-## What is CodeIgniter?
+Citizen Service is a microservice in the Smart Traffic Decision Support System responsible for managing citizen data and incident reports. This service allows citizens to submit incident reports, manage their profiles, view their reports and notifications, and publish events to RabbitMQ for inter-service communication.
 
-CodeIgniter is a PHP full-stack web framework that is light, fast, flexible and secure.
-More information can be found at the [official site](https://codeigniter.com).
+---
 
-This repository holds a composer-installable app starter.
-It has been built from the
-[development repository](https://github.com/codeigniter4/CodeIgniter4).
+## Overview
 
-More information about the plans for version 4 can be found in [CodeIgniter 4](https://forum.codeigniter.com/forumdisplay.php?fid=28) on the forums.
+### Features
 
-You can read the [user guide](https://codeigniter.com/user_guide/)
-corresponding to the latest version of the framework.
+* Authenticate users using JWT issued by the Auth Service
+* View citizen profile
+* Update citizen profile
+* Create incident reports
+* View personal reports
+* View all reports (Operator)
+* Update report status (Operator)
+* View citizen notifications
+* Publish `incident.created` events to RabbitMQ when a report is successfully created
 
-## Installation & updates
+---
 
-`composer create-project codeigniter4/appstarter` then `composer update` whenever
-there is a new release of the framework.
+## Technology Stack
 
-When updating, check the release notes to see if there are any changes you might need to apply
-to your `app` folder. The affected files can be copied or merged from
-`vendor/codeigniter4/framework/app`.
+* CodeIgniter 4
+* PHP 8+
+* MySQL
+* JWT Authentication
+* RabbitMQ
+* php-amqplib/php-amqplib
 
-## Setup
+---
 
-Copy `env` to `.env` and tailor for your app, specifically the baseURL
-and any database settings.
+## Database Structure
 
-## Important Change with index.php
+### `citizens`
 
-`index.php` is no longer in the root of the project! It has been moved inside the *public* folder,
-for better security and separation of components.
+Stores citizen information associated with users from the Auth Service.
 
-This means that you should configure your web server to "point" to your project's *public* folder, and
-not to the project root. A better practice would be to configure a virtual host to point there. A poor practice would be to point your web server to the project root and expect to enter *public/...*, as the rest of your logic and the
-framework are exposed.
+| Field        | Description                    |
+| ------------ | ------------------------------ |
+| `id`         | Primary key                    |
+| `user_id`    | User ID from Auth Service      |
+| `nik`        | National Identification Number |
+| `name`       | Citizen name                   |
+| `phone`      | Phone number                   |
+| `created_at` | Record creation timestamp      |
 
-**Please** read the user guide for a better explanation of how CI4 works!
+### `reports`
 
-## Repository Management
+Stores incident reports submitted by citizens.
 
-We use GitHub issues, in our main repository, to track **BUGS** and to track approved **DEVELOPMENT** work packages.
-We use our [forum](http://forum.codeigniter.com) to provide SUPPORT and to discuss
-FEATURE REQUESTS.
+| Field         | Description               |
+| ------------- | ------------------------- |
+| `id`          | Primary key               |
+| `citizen_id`  | Related citizen           |
+| `road_name`   | Road name                 |
+| `category`    | Incident category         |
+| `description` | Incident description      |
+| `status`      | Report status             |
+| `created_at`  | Record creation timestamp |
 
-This repository is a "distribution" one, built by our release preparation script.
-Problems with it can be raised on our forum, or as issues in the main repository.
+#### Report Categories
 
-## Server Requirements
+* `accident`
+* `broken_vehicle`
+* `fallen_tree`
+* `flood`
+* `road_obstacle`
+* `traffic_light_damage`
 
-PHP version 8.2 or higher is required, with the following extensions installed:
+### `notifications`
 
-- [intl](http://php.net/manual/en/intl.requirements.php)
-- [mbstring](http://php.net/manual/en/mbstring.installation.php)
+Stores notifications sent to citizens.
 
-> [!WARNING]
-> - The end of life date for PHP 7.4 was November 28, 2022.
-> - The end of life date for PHP 8.0 was November 26, 2023.
-> - The end of life date for PHP 8.1 was December 31, 2025.
-> - If you are still using below PHP 8.2, you should upgrade immediately.
-> - The end of life date for PHP 8.2 will be December 31, 2026.
+| Field        | Description               |
+| ------------ | ------------------------- |
+| `id`         | Primary key               |
+| `citizen_id` | Related citizen           |
+| `title`      | Notification title        |
+| `message`    | Notification content      |
+| `is_read`    | Read status               |
+| `created_at` | Record creation timestamp |
 
-Additionally, make sure that the following extensions are enabled in your PHP:
+---
 
-- json (enabled by default - don't turn it off)
-- [mysqlnd](http://php.net/manual/en/mysqlnd.install.php) if you plan to use MySQL
-- [libcurl](http://php.net/manual/en/curl.requirements.php) if you plan to use the HTTP\CURLRequest library
+## API Endpoints
+
+### Citizen
+
+| Method | Endpoint                | Description              |
+| ------ | ----------------------- | ------------------------ |
+| GET    | `/api/citizens/profile` | Retrieve citizen profile |
+| PUT    | `/api/citizens/profile` | Update citizen profile   |
+
+### Reports
+
+| Method | Endpoint                            | Description                                         |
+| ------ | ----------------------------------- | --------------------------------------------------- |
+| POST   | `/api/citizens/reports`             | Create a new incident report                        |
+| GET    | `/api/citizens/reports`             | Retrieve reports owned by the authenticated citizen |
+| GET    | `/api/citizens/reports/all`         | Retrieve all reports (Operator only)                |
+| PUT    | `/api/citizens/reports/{id}/status` | Update report status (Operator only)                |
+
+### Notifications
+
+| Method | Endpoint                      | Description                    |
+| ------ | ----------------------------- | ------------------------------ |
+| GET    | `/api/citizens/notifications` | Retrieve citizen notifications |
+
+---
+
+## Request Examples
+
+### Create Report
+
+**POST** `/api/citizens/reports`
+
+```json
+{
+  "road_name": "MT Haryono",
+  "category": "accident",
+  "description": "Kecelakaan di simpang Cawang"
+}
+```
+
+### Update Profile
+
+**PUT** `/api/citizens/profile`
+
+```json
+{
+  "name": "Budi Santoso",
+  "phone": "08123456789"
+}
+```
+
+---
+
+## Authentication
+
+All endpoints require JWT authentication.
+
+Include the token in the request header:
+
+```http
+Authorization: Bearer <token>
+```
+
+The JWT is obtained from the Auth Service.
+
+---
+
+## RabbitMQ Integration
+
+Whenever a citizen successfully creates a report, Citizen Service publishes an event to RabbitMQ.
+
+**Exchange**
+
+```text
+city.events
+```
+
+**Routing Key**
+
+```text
+incident.created
+```
+
+**Payload Example**
+
+```json
+{
+  "incident_id": 1,
+  "category": "accident",
+  "road_name": "MT Haryono",
+  "description": "Kecelakaan di simpang Cawang"
+}
+```
+
+If RabbitMQ is unavailable, the report is still saved to the database. Only the event publishing process is skipped.
+
+---
+
+## Local Setup
+
+### 1. Install Dependencies
+
+```bash
+composer install
+```
+
+### 2. Configure Environment
+
+Copy the environment file.
+
+```bash
+cp .env.example .env
+```
+
+Update the following configuration values in `.env`:
+
+* Database connection
+* JWT configuration
+* RabbitMQ configuration
+
+### 3. Import Database
+
+Import the Citizen Service database schema and seed data.
+
+### 4. Run the Application
+
+```bash
+php spark serve
+```
+
+By default, the application will run at:
+
+```text
+http://localhost:8080
+```
+
+### 5. Test the API
+
+Use Postman or another API client with the following header:
+
+```http
+Authorization: Bearer <JWT_TOKEN>
+```
+
+---
+
+## Notes
+
+* Citizens can only access their own reports.
+* Operators can view all reports and update report statuses.
+* RabbitMQ is used for communication between microservices.
+* Authentication is handled using JWT issued by the Auth Service.
+* Report creation does not depend on RabbitMQ availability; reports are always stored in the database.
