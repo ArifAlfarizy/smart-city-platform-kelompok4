@@ -6,7 +6,7 @@ def get_channel():
     conn = pika.BlockingConnection(
         pika.ConnectionParameters(
             host='localhost',
-            port=5672,
+            port=5640,
             credentials=pika.PlainCredentials('guest', 'guest')
         )
     )
@@ -67,7 +67,7 @@ def test_incident_event():
         "incident_id": 42,
         "category": "accident",
         "road_name": "MT Haryono",
-        "description": "Kecelakaan 2 kendaraan di Simpang Cawang arah Tebet"
+        "description": "Kecelakaan 2 kendaraan di Simpang Cawang"
     }
     ch.basic_publish(
         exchange=EXCHANGE,
@@ -83,8 +83,8 @@ def test_incident_event():
 def subscribe_recommendations():
     conn, ch = get_channel()
     
-    # Queue temporary untuk test
-    ch.queue_declare(queue="recommendations.test", durable=False)
+    # Fix: pake durable=True
+    ch.queue_declare(queue="recommendations.test", durable=True, auto_delete=True)
     ch.queue_bind(
         queue="recommendations.test",
         exchange=EXCHANGE,
@@ -120,20 +120,36 @@ def test_all_events():
     print("\n" + "="*55)
     print("RUNNING ALL TESTS")
     print("="*55)
-    
-    # Test 1: Traffic
     test_traffic_event()
     time.sleep(1)
-    
-    # Test 2: Environment
     test_environment_event()
     time.sleep(1)
-    
-    # Test 3: Incident
     test_incident_event()
     print("\n" + "="*55)
     print("All events published! Check subscriber terminal.")
     print("="*55)
+
+def test_anomaly_alert():
+    conn, ch = get_channel()
+    declare_queue(ch, "environment.updated", "environment.updated")
+    
+    # Payload BANJIR EKSTREM (melewati threshold 500)
+    payload = {
+        "rainfall": 99.0,
+        "water_level": 999.9,
+        "timestamp": "2026-06-29T08:00:00"
+    }
+    ch.basic_publish(
+        exchange=EXCHANGE,
+        routing_key="environment.updated",
+        body=json.dumps(payload),
+        properties=pika.BasicProperties(delivery_mode=2)
+    )
+    print(f"\n[ANOMALI] environment.updated published:")
+    print(f"   rainfall: {payload['rainfall']} mm (EKSTREM)")
+    print(f"   water_level: {payload['water_level']} cm (BAHAYA)")
+    conn.close()
+
 
 if __name__ == "__main__":
     print("="*55)
@@ -145,6 +161,7 @@ if __name__ == "__main__":
     print(" 3. Publish incident event (incident.created)")
     print(" 4. Subscribe recommendations (buka di terminal terpisah)")
     print(" 5. Run ALL tests (publish all events at once)")
+    print(" 6. Trigger ANOMALY ALERT (S6 - Water Level 999.9 cm)") 
     print(" 0. Exit")
     
     choice = input("\nMasukkan pilihan (0-5): ").strip()
@@ -159,6 +176,8 @@ if __name__ == "__main__":
         subscribe_recommendations()
     elif choice == "5":
         test_all_events()
+    elif choice == "6":                                
+        test_anomaly_alert()
     elif choice == "0":
         print("Exit.")
     else:
