@@ -1,6 +1,6 @@
 # Citizen Service
 
-Citizen Service is a microservice in the Smart Traffic Decision Support System responsible for managing citizen data and incident reports. This service allows citizens to submit incident reports, manage their profiles, view their reports and notifications, and publish events to RabbitMQ for inter-service communication.
+Citizen Service merupakan sebuah microservice pada **Smart Traffic Decision Support System** yang bertanggung jawab dalam mengelola data warga (*citizen*) dan laporan insiden. Service ini memungkinkan warga untuk mengirimkan laporan insiden, mengelola profil, melihat riwayat laporan serta notifikasi, dan mengirimkan event ke RabbitMQ sebagai media komunikasi antar-microservice.
 
 ---
 
@@ -8,15 +8,15 @@ Citizen Service is a microservice in the Smart Traffic Decision Support System r
 
 ### Features
 
-* Authenticate users using JWT issued by the Auth Service
-* View citizen profile
-* Update citizen profile
-* Create incident reports
-* View personal reports
-* View all reports (Operator)
-* Update report status (Operator)
-* View citizen notifications
-* Publish `incident.created` events to RabbitMQ when a report is successfully created
+* Melakukan autentikasi pengguna menggunakan JWT yang diterbitkan oleh **Auth Service**
+* Melihat profil warga (*citizen profile*)
+* Memperbarui profil warga
+* Membuat laporan insiden
+* Melihat laporan milik sendiri
+* Melihat seluruh laporan (Operator)
+* Memperbarui status laporan (Operator)
+* Melihat notifikasi warga
+* Mengirim event `incident.created` ke RabbitMQ ketika laporan berhasil dibuat
 
 ---
 
@@ -35,30 +35,30 @@ Citizen Service is a microservice in the Smart Traffic Decision Support System r
 
 ### `citizens`
 
-Stores citizen information associated with users from the Auth Service.
+Menyimpan informasi warga yang terhubung dengan pengguna dari **Auth Service**.
 
-| Field        | Description                    |
-| ------------ | ------------------------------ |
-| `id`         | Primary key                    |
-| `user_id`    | User ID from Auth Service      |
-| `nik`        | National Identification Number |
-| `name`       | Citizen name                   |
-| `phone`      | Phone number                   |
-| `created_at` | Record creation timestamp      |
+| Field        | Description               |
+| ------------ | ------------------------- |
+| `id`         | Primary key               |
+| `user_id`    | User ID dari Auth Service |
+| `nik`        | Nomor Induk Kependudukan  |
+| `name`       | Nama warga                |
+| `phone`      | Nomor telepon             |
+| `created_at` | Waktu data dibuat         |
 
 ### `reports`
 
-Stores incident reports submitted by citizens.
+Menyimpan laporan insiden yang dikirimkan oleh warga.
 
-| Field         | Description               |
-| ------------- | ------------------------- |
-| `id`          | Primary key               |
-| `citizen_id`  | Related citizen           |
-| `road_name`   | Road name                 |
-| `category`    | Incident category         |
-| `description` | Incident description      |
-| `status`      | Report status             |
-| `created_at`  | Record creation timestamp |
+| Field         | Description                |
+| ------------- | -------------------------- |
+| `id`          | Primary key                |
+| `citizen_id`  | Data warga yang terkait    |
+| `road_name`   | Nama jalan lokasi kejadian |
+| `category`    | Kategori insiden           |
+| `description` | Deskripsi insiden          |
+| `status`      | Status laporan             |
+| `created_at`  | Waktu laporan dibuat       |
 
 #### Report Categories
 
@@ -71,16 +71,16 @@ Stores incident reports submitted by citizens.
 
 ### `notifications`
 
-Stores notifications sent to citizens.
+Menyimpan notifikasi yang dikirimkan kepada warga.
 
-| Field        | Description               |
-| ------------ | ------------------------- |
-| `id`         | Primary key               |
-| `citizen_id` | Related citizen           |
-| `title`      | Notification title        |
-| `message`    | Notification content      |
-| `is_read`    | Read status               |
-| `created_at` | Record creation timestamp |
+| Field        | Description                    |
+| ------------ | ------------------------------ |
+| `id`         | Primary key                    |
+| `citizen_id` | Data warga yang terkait        |
+| `title`      | Judul notifikasi               |
+| `message`    | Isi notifikasi                 |
+| `is_read`    | Status sudah dibaca atau belum |
+| `created_at` | Waktu notifikasi dibuat        |
 
 ---
 
@@ -88,25 +88,25 @@ Stores notifications sent to citizens.
 
 ### Citizen
 
-| Method | Endpoint                | Description              |
-| ------ | ----------------------- | ------------------------ |
-| GET    | `/api/citizens/profile` | Retrieve citizen profile |
-| PUT    | `/api/citizens/profile` | Update citizen profile   |
+| Method | Endpoint                | Description                   |
+| ------ | ----------------------- | ----------------------------- |
+| GET    | `/api/citizens/profile` | Mengambil data profil warga   |
+| PUT    | `/api/citizens/profile` | Memperbarui data profil warga |
 
 ### Reports
 
-| Method | Endpoint                            | Description                                         |
-| ------ | ----------------------------------- | --------------------------------------------------- |
-| POST   | `/api/citizens/reports`             | Create a new incident report                        |
-| GET    | `/api/citizens/reports`             | Retrieve reports owned by the authenticated citizen |
-| GET    | `/api/citizens/reports/all`         | Retrieve all reports (Operator only)                |
-| PUT    | `/api/citizens/reports/{id}/status` | Update report status (Operator only)                |
+| Method | Endpoint                            | Description                                             |
+| ------ | ----------------------------------- | ------------------------------------------------------- |
+| POST   | `/api/citizens/reports`             | Membuat laporan insiden baru                            |
+| GET    | `/api/citizens/reports`             | Mengambil seluruh laporan milik warga yang sedang login |
+| GET    | `/api/citizens/reports/all`         | Mengambil seluruh laporan (khusus Operator)             |
+| PUT    | `/api/citizens/reports/{id}/status` | Memperbarui status laporan (khusus Operator)            |
 
 ### Notifications
 
-| Method | Endpoint                      | Description                    |
-| ------ | ----------------------------- | ------------------------------ |
-| GET    | `/api/citizens/notifications` | Retrieve citizen notifications |
+| Method | Endpoint                      | Description                       |
+| ------ | ----------------------------- | --------------------------------- |
+| GET    | `/api/citizens/notifications` | Mengambil daftar notifikasi warga |
 
 ---
 
@@ -139,21 +139,21 @@ Stores notifications sent to citizens.
 
 ## Authentication
 
-All endpoints require JWT authentication.
+Seluruh endpoint menggunakan autentikasi JWT.
 
-Include the token in the request header:
+Sertakan token pada header request berikut:
 
 ```http
 Authorization: Bearer <token>
 ```
 
-The JWT is obtained from the Auth Service.
+JWT diperoleh melalui **Auth Service**.
 
 ---
 
 ## RabbitMQ Integration
 
-Whenever a citizen successfully creates a report, Citizen Service publishes an event to RabbitMQ.
+Setiap kali warga berhasil membuat laporan, **Citizen Service** akan mengirimkan event ke RabbitMQ.
 
 **Exchange**
 
@@ -178,7 +178,7 @@ incident.created
 }
 ```
 
-If RabbitMQ is unavailable, the report is still saved to the database. Only the event publishing process is skipped.
+Apabila RabbitMQ tidak tersedia, laporan tetap akan disimpan ke database. Hanya proses pengiriman event yang dilewati.
 
 ---
 
@@ -192,21 +192,21 @@ composer install
 
 ### 2. Configure Environment
 
-Copy the environment file.
+Salin file environment.
 
 ```bash
 cp .env.example .env
 ```
 
-Update the following configuration values in `.env`:
+Kemudian sesuaikan konfigurasi berikut pada file `.env`:
 
-* Database connection
-* JWT configuration
-* RabbitMQ configuration
+* Konfigurasi database
+* Konfigurasi JWT
+* Konfigurasi RabbitMQ
 
 ### 3. Import Database
 
-Import the Citizen Service database schema and seed data.
+Import schema database dan data awal (*seed*) untuk **Citizen Service**.
 
 ### 4. Run the Application
 
@@ -214,7 +214,7 @@ Import the Citizen Service database schema and seed data.
 php spark serve
 ```
 
-By default, the application will run at:
+Secara default aplikasi akan berjalan pada:
 
 ```text
 http://localhost:8080
@@ -222,7 +222,7 @@ http://localhost:8080
 
 ### 5. Test the API
 
-Use Postman or another API client with the following header:
+Gunakan Postman atau API client lainnya dengan header berikut:
 
 ```http
 Authorization: Bearer <JWT_TOKEN>
@@ -232,8 +232,8 @@ Authorization: Bearer <JWT_TOKEN>
 
 ## Notes
 
-* Citizens can only access their own reports.
-* Operators can view all reports and update report statuses.
-* RabbitMQ is used for communication between microservices.
-* Authentication is handled using JWT issued by the Auth Service.
-* Report creation does not depend on RabbitMQ availability; reports are always stored in the database.
+* Warga hanya dapat mengakses laporan yang mereka miliki.
+* Operator dapat melihat seluruh laporan serta memperbarui status laporan.
+* RabbitMQ digunakan sebagai media komunikasi antar-microservice.
+* Proses autentikasi menggunakan JWT yang diterbitkan oleh **Auth Service**.
+* Pembuatan laporan tidak bergantung pada ketersediaan RabbitMQ sehingga laporan tetap tersimpan meskipun proses publish event gagal.

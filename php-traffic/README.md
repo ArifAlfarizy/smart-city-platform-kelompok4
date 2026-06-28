@@ -109,7 +109,7 @@ php worker.php
 
 Semua request dan response wajib menggunakan tipe konten `application/json` dengan format standardisasi perusahaan.
 
-### 🚗 Log Lalu Lintas (Traffic Data)
+### Log Lalu Lintas (Traffic Data)
 
 | Method | Endpoint | Akses Aktor | Deskripsi / Fungsi |
 | --- | --- | --- | --- |
@@ -119,7 +119,7 @@ Semua request dan response wajib menggunakan tipe konten `application/json` deng
 | **GET** | `/traffic-history` | Dashboard | Menampilkan seluruh rekam jejak log riwayat data sensor |
 | **GET** | `/traffic-summary` | Dashboard | Menyajikan ringkasan agregasi data volume kendaraan harian |
 
-### ⚠️ Manajemen Insiden Internal (Incidents)
+### Manajemen Insiden Internal (Incidents)
 
 | Method | Endpoint | Akses Aktor | Deskripsi / Fungsi |
 | --- | --- | --- | --- |
