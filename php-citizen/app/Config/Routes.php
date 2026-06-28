@@ -16,6 +16,11 @@ $routes->get('/', 'Home::index');
 
 $routes->group('api/citizens', ['filter' => 'jwt'], function ($routes) {
 
+    $routes->post(
+        'register',
+        'CitizenController::register'
+    );
+
     $routes->get(
         'profile',
         'CitizenController::profile'
