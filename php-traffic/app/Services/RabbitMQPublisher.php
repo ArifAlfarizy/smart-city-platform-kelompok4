@@ -16,7 +16,7 @@ class RabbitMQPublisher {
     public function __construct() {
         // Mengambil kredensial server RabbitMQ dari variabel global $_ENV
         $this->host = $_ENV['RABBITMQ_HOST'] ?? 'localhost';
-        $this->port = intval($_ENV['RABBITMQ_PORT'] ?? 5674);
+        $this->port = intval($_ENV['RABBITMQ_PORT'] ?? 5672);
         $this->user = $_ENV['RABBITMQ_USER'] ?? 'guest';
         $this->pass = $_ENV['RABBITMQ_PASSWORD'] ?? 'guest';
     }
