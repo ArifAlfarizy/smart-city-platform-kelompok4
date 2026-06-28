@@ -67,7 +67,7 @@ DB_PASSWORD=
 DB_NAME=smartcity
 
 RABBITMQ_HOST=localhost
-RABBITMQ_PORT=5674
+RABBITMQ_PORT=5672
 RABBITMQ_USER=guest
 RABBITMQ_PASSWORD=guest
 
@@ -78,11 +78,11 @@ RABBITMQ_PASSWORD=guest
 Buka terminal baru lalu aktifkan container RabbitMQ via Docker:
 
 ```bash
-docker run -d --name smartcity-rabbitmq -p 5674:5674 -p 15674:15674 rabbitmq:3-management
+docker run -d --name smartcity-rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:3-management
 
 ```
 
-*Dashboard pemantauan antrean dapat diakses di `http://localhost:15674` (user/pass: `guest`).*
+*Dashboard pemantauan antrean dapat diakses di `http://localhost:15672` (user/pass: `guest`).*
 
 ### 4. Install Dependensi Vendor & Jalankan Server API
 
