@@ -7,10 +7,10 @@ const char* WIFI_SSID     = "Wokwi-GUEST";
 const char* WIFI_PASSWORD = "";
 
 // ── MQTT ───────────────────────────────────────────────────────────
-const char* MQTT_BROKER   = "mosquitto";   // Docker: nama service
-const int   MQTT_PORT     = 1883;
+const char* MQTT_BROKER   = "103.147.92.135";  // Docker: nama service
+const int   MQTT_PORT     = 1840;
 const char* MQTT_USER     = "iot_device";
-const char* MQTT_PASSWORD = "iot_secret";
+const char* MQTT_PASSWORD = "secret123";
 const char* SENSOR_ID     = "ESP32-ENV-01";
 
 // ── Pin ────────────────────────────────────────────────────────────
