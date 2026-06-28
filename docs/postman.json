@@ -784,6 +784,37 @@
       "description": "Endpoint untuk manajemen warga dan laporan",
       "item": [
         {
+  "name": "5.0 POST Register Citizen Profile",
+  "request": {
+    "method": "POST",
+    "header": [
+      {
+        "key": "Content-Type",
+        "value": "application/json"
+      },
+      {
+        "key": "Authorization",
+        "value": "Bearer {{token}}"
+      }
+    ],
+    "body": {
+      "mode": "raw",
+      "raw": "{\n  \"nik\": \"3201234567890123\",\n  \"name\": \"Jane Doe\",\n  \"phone\": \"081234567890\"\n}",
+      "options": {
+        "raw": {
+          "language": "json"
+        }
+      }
+    },
+    "url": {
+      "raw": "{{baseUrl}}/api/citizens/register",
+      "host": ["{{baseUrl}}"],
+      "path": ["api", "citizens", "register"]
+    }
+  },
+  "response": []
+},
+        {
           "name": "5.1 GET Profile",
           "request": {
             "method": "GET",

@@ -61,7 +61,6 @@ const passwordGrant = async (req, res) => {
 
     if (!checkExistingUser) {
       return res.status(404).json({
-        // change code to duplicate
         success: false,
         message: "user not found. Try register!",
       });
@@ -97,7 +96,7 @@ const passwordGrant = async (req, res) => {
       access_token: accessToken,
       refresh_token: refreshToken,
       token_type: "Bearer",
-      expires_in: Number(process.env.JWT_ACCESS_EXPIRES_IN),
+      expires_in: 1728,  // ← HARDCODE 1728 (28.8 menit)
     });
   } catch (error) {
     console.error("Granting password error:", error);
@@ -149,7 +148,7 @@ const refreshTokenGrant = async (req, res) => {
       access_token: accessToken,
       refresh_token: newRefreshToken,
       token_type: "Bearer",
-      expires_in: Number(process.env.JWT_ACCESS_EXPIRES_IN),
+      expires_in: 1728,  // ← HARDCODE 1728 (28.8 menit)
     });
   } catch (error) {
     console.error("Refresh token grant error:", error);
@@ -209,7 +208,7 @@ const clientCredentialsGrant = async (req, res) => {
       success: true,
       access_token: accessToken,
       token_type: "Bearer",
-      expires_in: Number(process.env.JWT_ACCESS_EXPIRES_IN),
+      expires_in: 1728,  // ← HARDCODE 1728 (28.8 menit)
     });
   } catch (error) {
     console.error("Client credentials grant error:", error);

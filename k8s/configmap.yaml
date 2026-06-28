@@ -1,25 +1,37 @@
 # k8s/configmap.yaml
 apiVersion: v1
 kind: ConfigMap
-metadata:
-  name: smartcity-config
-  namespace: smartcity
-data:
-  # App
-  APP_ENV: "production"
-  APP_PORT: "5000"
 
-  # RabbitMQ
+metadata:
+  name: smart-city-config
+  namespace: smartcity
+
+data:
+
+  MYSQL_HOST: "mysql"
+  MYSQL_PORT: "3306"
+  MYSQL_DATABASE: "smartcity"
+
   RABBITMQ_HOST: "rabbitmq"
   RABBITMQ_PORT: "5672"
-  RABBITMQ_USER: "guest"
-  RABBITMQ_EXCHANGE: "city.events"
 
-  # Database
-  DB_HOST: "mysql"
-  DB_PORT: "3306"
-  DB_NAME: "smartcity"
-  DB_USER: "root"
+  MQTT_HOST: "mosquitto"
+  MQTT_PORT: "1883"
 
-  # Model
-  MODEL_PATH: "models/smartcity_models.pkl"
+  API_GATEWAY_HOST: "api-gateway"
+  API_GATEWAY_PORT: "3000"
+
+  AUTH_HOST: "auth-service"
+  AUTH_PORT: "3002"
+
+  TRAFFIC_HOST: "traffic-service"
+  TRAFFIC_PORT: "8001"
+
+  ENVIRONMENT_HOST: "environment-service"
+  ENVIRONMENT_PORT: "8002"
+
+  CITIZEN_HOST: "citizen-service"
+  CITIZEN_PORT: "8080"
+
+  ML_HOST: "python-ml"
+  ML_PORT: "5000"

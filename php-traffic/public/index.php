@@ -38,7 +38,6 @@ function jsonResponse($status, $code, $message, $data = null) {
     echo json_encode([
         "status" => $status,
         "code" => $code,
-        "data" => $data,
         "message" => $message,
         "timestamp" => date(DATE_ISO8601),
         "service" => "php-traffic"

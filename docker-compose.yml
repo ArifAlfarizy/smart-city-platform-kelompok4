@@ -1,5 +1,6 @@
 # ================================================================
 # SMART CITY PLATFORM - Full Stack Docker Compose
+# PORT MAPPING: Kelompok 4 (semua port diakhiri 40)
 # ================================================================
 services:
   # ============================================================
@@ -18,12 +19,13 @@ services:
       MYSQL_PASSWORD: env_secret
       TZ: Asia/Jakarta
     ports:
-      - "3306:3306"
+      - "3340:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
       - ./database/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
       - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -prootpass || exit 1"]
       interval: 30s
@@ -42,10 +44,11 @@ services:
       RABBITMQ_DEFAULT_PASS: guest
       TZ: Asia/Jakarta
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "5640:5672"
+      - "15640:15672"
     volumes:
       - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 20s
@@ -59,10 +62,11 @@ services:
     image: eclipse-mosquitto:2
     container_name: mosquitto
     ports:
-      - "1883:1883"
+      - "1840:1883"
     volumes:
       - ./iot/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     environment:
       TZ: Asia/Jakarta
     networks:
@@ -79,7 +83,7 @@ services:
       dockerfile: Dockerfile
     container_name: auth-service
     ports:
-      - "3002:3002"
+      - "3042:3002"
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
@@ -91,7 +95,7 @@ services:
       DB_PASSWORD: env_secret
       DB_NAME: smartcity
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-accessrahasia_super_secret_min_32_chars}
-      JWT_ACCESS_EXPIRES_IN: 86400
+      JWT_ACCESS_EXPIRES_IN: 1728000
       SALT_ROUNDS: 10
       TZ: Asia/Jakarta
     depends_on:
@@ -113,7 +117,7 @@ services:
       dockerfile: Dockerfile
     container_name: api-gateway
     ports:
-      - "3000:3000"
+      - "3040:3000"
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
@@ -157,9 +161,10 @@ services:
       dockerfile: Dockerfile
     container_name: environment-service
     ports:
-      - "8002:8002"
+      - "8042:8002"
     volumes:
       - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     environment:
       DB_HOST: mysql_db
       DB_PORT: 3306
@@ -200,9 +205,10 @@ services:
       dockerfile: Dockerfile
     container_name: traffic-service
     ports:
-      - "8001:8001"
+      - "8041:8001"
     volumes:
       - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     environment:
       DB_HOST: mysql_db
       DB_PORT: 3306
@@ -230,6 +236,7 @@ services:
     container_name: traffic-worker
     volumes:
       - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     environment:
       DB_HOST: mysql_db
       DB_PORT: 3306
@@ -260,9 +267,10 @@ services:
       dockerfile: Dockerfile
     container_name: citizen-service
     ports:
-      - "8080:8080"
+      - "8040:8080"
     volumes:
       - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     environment:
       CI_ENVIRONMENT: production
       database.default.hostname: mysql_db
@@ -298,9 +306,11 @@ services:
       dockerfile: Dockerfile
     container_name: python-ml
     ports:
-      - "5001:5000"
+      - "5040:5000"
     volumes:
+      - ./python-ml-service/models:/app/models
       - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     environment:
       APP_ENV: production
       APP_PORT: 5000
@@ -342,10 +352,11 @@ services:
     image: nodered/node-red:3.1
     container_name: node-red
     ports:
-      - "1880:1880"
+      - "1884:1880"
     volumes:
       - ./iot/node-red-data:/data
       - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     environment:
       - NODE_RED_ENABLE_SAFE_MODE=false
       - TZ=Asia/Jakarta
@@ -364,10 +375,11 @@ services:
     image: prom/prometheus:v2.48.0
     container_name: prometheus
     ports:
-      - "9090:9090"
+      - "9040:9090"
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     networks:
       - smartcity-net
     restart: unless-stopped
@@ -378,10 +390,11 @@ services:
     image: grafana/grafana:10.2.0
     container_name: grafana
     ports:
-      - "3001:3000"
+      - "3041:3000"
     volumes:
       - grafana_data:/var/lib/grafana
       - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     environment:
       - TZ=Asia/Jakarta
     networks:

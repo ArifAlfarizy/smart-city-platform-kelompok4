@@ -42,7 +42,7 @@ RISK_MODEL_PATH = os.getenv("RISK_MODEL_PATH", "models/risk_model.pkl")
 
 BUNDLE = {}
 try:
-    loaded = joblib.load(MODEL_PATH)
+    loaded=joblib.load(MODEL_PATH)
     BUNDLE["congestion"] = loaded["congestion"]
     logger.info(f"Congestion model loaded: {MODEL_PATH}")
 except:
