@@ -1,25 +1,24 @@
 # Smart City Platform — Kelompok 4
 
-Platform microservices untuk simulasi kota pintar: monitoring lalu lintas, kualitas lingkungan (hujan & ketinggian air), layanan pelaporan warga, dan rekomendasi berbasis Machine Learning — terintegrasi lewat satu API Gateway dengan otentikasi OAuth 2.0.
+Platform microservices untuk simulasi kota pintar: monitoring lalu lintas, kualitas lingkungan (hujan & ketinggian air), layanan pelaporan warga, dan rekomendasi berbasis Machine Learning — terintegrasi lewat satu API Gateway dengan otentikasi OAuth 2.0. Seluruh layanan ini telah di-deploy dan berjalan di lingkungan server produksi.
 
 ## Daftar Isi
 
 - [Arsitektur](#arsitektur)
 - [Tech Stack](#tech-stack)
-- [Prasyarat](#prasyarat)
-- [Instalasi](#instalasi)
-- [Menjalankan Project](#menjalankan-project)
-- [Service & Port](#service--port)
-- [Database](#database)
-- [Testing Manual](#testing-manual)
-- [Troubleshooting](#troubleshooting)
+- [Prasyarat Server](#prasyarat-server)
+- [Manajemen Proyek di Server](#manajemen-proyek-di-server)
+- [Service & Port (Server)](#service--port-server)
+- [Database Server](#database-server)
+- [Skenario Pengujian (Demo) & Endpoint API](#skenario-pengujian-demo--endpoint-api)
+- [Troubleshooting Server](#troubleshooting-server)
 - [Struktur Folder](#struktur-folder)
 
 ## Arsitektur
 
-```
+```text
                         ┌─────────────────┐
-                        │   API Gateway   │  :3000
+                        │   API Gateway   │  :3040 (Public)
                         │ (Express + JWT) │
                         └────────┬────────┘
                                  │
@@ -28,7 +27,7 @@ Platform microservices untuk simulasi kota pintar: monitoring lalu lintas, kuali
   ┌─────▼────┐ ┌────▼─────┐ ┌────▼─────┐ ┌────▼─────┐  ┌─────▼─────┐
   │   Auth   │ │ Traffic  │ │  Citizen │ │Environment│  │ Python ML │
   │ (Node.js)│ │  (PHP)   │ │ (PHP CI) │ │(PHP Slim) │  │ (FastAPI) │
-  │  :3002   │ │  :8001   │ │  :8080   │ │  :8002    │  │  :5001    │
+  │  :3042   │ │  :8041   │ │  :8040   │ │  :8042    │  │  :5040    │
   └────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬──────┘  └─────┬─────┘
        │            │            │            │               │
        └────────────┴────────────┴────────────┴───────────────┘
@@ -37,18 +36,19 @@ Platform microservices untuk simulasi kota pintar: monitoring lalu lintas, kuali
                   │                              │
             ┌─────▼─────┐                 ┌──────▼──────┐
             │  MySQL 8   │                 │  RabbitMQ   │
-            │   :3306    │                 │ :5672/15672 │
+            │   :3340    │                 │ :5640/15640 │
             └────────────┘                 └─────────────┘
 
-IoT layer:  ESP32 → Mosquitto (MQTT :1883) → Node-RED (:1880) → API Gateway
+IoT layer:  ESP32 → Mosquitto (MQTT :1840) → Node-RED (:1884) → API Gateway
+
 ```
 
-Semua request publik masuk lewat **API Gateway** (`:3000`). Gateway yang melakukan verifikasi JWT, rate limiting, dan proxy ke service tujuan. Service backend (traffic, citizen, environment) tidak diakses langsung oleh client di production, walau port-nya tetap di-expose untuk keperluan debug.
+Semua request publik masuk lewat **API Gateway** (`:3040`). Gateway melakukan verifikasi JWT, rate limiting, dan proxy ke service tujuan. Service backend tidak diakses langsung oleh publik di production, namun port host tetap di-expose untuk keperluan pengujian dan debug kelompok.
 
 ## Tech Stack
 
 | Layer | Teknologi |
-|---|---|
+| --- | --- |
 | API Gateway | Node.js, Express 5, `http-proxy-middleware`, `jsonwebtoken` |
 | Auth Service | Node.js, Express 5, MySQL (`mysql2`), `bcrypt`, OAuth2-style grants |
 | Traffic & Environment Service | PHP 8.2, Slim Framework |
@@ -60,166 +60,183 @@ Semua request publik masuk lewat **API Gateway** (`:3000`). Gateway yang melakuk
 | Orkestrasi | Docker Compose, Kubernetes manifests (`/k8s`) |
 | Monitoring (opsional) | Prometheus, Grafana |
 
-## Prasyarat
+## Prasyarat Server
 
-- [Docker](https://docs.docker.com/get-docker/) & Docker Compose v2 (`docker compose version`)
-- Git
-- Untuk testing manual via script Python: Python 3.9+ dan `pip install pika`
-- (Opsional, kalau mau develop salah satu service tanpa Docker) Node.js 18+, PHP 8.2 + Composer, Python 3.11+
+* Docker & Docker Compose v2 terinstal di server.
+* Akses SSH ke instance server `103.147.92.135`.
+* Python 3.9+ (untuk menjalankan script simulasi/subscriber *event* di terminal server).
 
-## Instalasi
+---
 
-1. **Clone repository**
-   ```bash
-   git clone https://github.com/ArifAlfarizy/smart-city-platform-kelompok4
-   cd smart-city-platform-kelompok4
-   ```
+## Manajemen Proyek di Server
 
-2. **Siapkan environment variable untuk tiap service**
-
-   Setiap service punya `.env.example`. Saat image di-build, Dockerfile otomatis copy `.env.example` → `.env` kalau `.env` belum ada — jadi untuk development cepat, kamu **tidak wajib** bikin `.env` manual. Tapi untuk production atau kalau mau ganti secret, copy manual dan isi:
-
-   ```bash
-   cp auth-service/.env.example auth-service/.env
-   cp express-gateway/.env.example express-gateway/.env
-   cp php-citizen/.env.example php-citizen/.env
-   cp php-environment/.env.example php-environment/.env
-   cp python-ml-service/.env.example python-ml-service/.env
-   ```
-
-   > **Penting:** `JWT_ACCESS_SECRET` harus **identik** di semua service (auth-service, api-gateway, citizen-service, environment-service, python-ml). Kalau beda, verifikasi token akan selalu gagal di service yang secret-nya tidak match. Di `docker-compose.yml`, ini sudah diatur lewat satu variable bersama:
-   > ```bash
-   > export JWT_ACCESS_SECRET=secret_kamu_minimal_32_karakter
-   > ```
-   > Kalau tidak di-set, semua service otomatis pakai default `accessrahasia_super_secret_min_32_chars` dari `docker-compose.yml` — aman untuk development, **jangan dipakai di production**.
-
-3. **Build & jalankan semua service**
-   ```bash
-   docker compose up -d --build
-   ```
-
-   Compose akan otomatis: tarik image infrastruktur (MySQL, RabbitMQ, Mosquitto), build image custom tiap service, lalu start sesuai urutan `depends_on` (DB & broker harus `healthy` dulu sebelum service aplikasi start).
-
-## Menjalankan Project
+Untuk melakukan pemeliharaan, pengecekan log, atau *restart* kontainer, silakan masuk ke server dan akses direktori proyek yang telah dikonfigurasi:
 
 ```bash
-# Jalankan semua service di background
-docker compose up -d --build
+# 1. Pindah ke direktori proyek di server
+cd ~/Kelompok4_SmartCityPlatform/smart-city-platform-kelompok4
 
-# Cek status semua container
+# 2. Periksa status dan kesehatan seluruh kontainer
 docker compose ps
 
-# Lihat log salah satu service (live)
+# 3. Jalankan atau build ulang semua service di background jika ada perubahan kode
+docker compose up -d --build
+
+# 4. Memantau log aktivitas API Gateway secara live
 docker compose logs -f api-gateway
 
-# Stop semua service (data di volume tetap ada)
+# 5. Menghentikan seluruh layanan platform
 docker compose stop
 
-# Stop & hapus container (volume MySQL tetap aman)
-docker compose down
-
-# Hapus container + volume (RESET total database, hati-hati!)
-docker compose down -v
 ```
 
-Modul monitoring (Prometheus & Grafana) memakai Compose **profile**, jadi tidak otomatis ikut start:
-```bash
-docker compose --profile monitoring up -d
-```
+### Verifikasi Health Check Layanan (Akses Publik)
 
-### Verifikasi semua service hidup
+Setiap layanan menyediakan endpoint *health check* yang dapat diakses langsung menggunakan IP server:
 
 ```bash
-curl http://localhost:3000/health   # API Gateway
-curl http://localhost:3002/health   # Auth Service
-curl http://localhost:8002/health   # Environment Service
-curl http://localhost:5001/health   # Python ML Service
+curl [http://103.147.92.135:3040/health](http://103.147.92.135:3040/health)   # API Gateway
+curl [http://103.147.92.135:3042/health](http://103.147.92.135:3042/health)   # Auth Service
+curl [http://103.147.92.135:8042/health](http://103.147.92.135:8042/health)   # Environment Service
+curl [http://103.147.92.135:5040/health](http://103.147.92.135:5040/health)   # ML Service
+
 ```
 
-Semua container harus berstatus `Up ... (healthy)` di `docker compose ps`. Kalau ada yang `unhealthy` atau `Exited`, cek bagian [Troubleshooting](#troubleshooting).
+---
 
-## Service & Port
+## Service & Port (Server)
 
-| Service | Container | Port Host | Akses |
-|---|---|---|---|
-| API Gateway | `api-gateway` | `3000` | Entry point utama (publik) |
-| Auth Service | `auth-service` | `3002` | Lewat gateway / langsung untuk debug |
-| Traffic Service | `traffic-service` | `8001` | Lewat gateway |
-| Environment Service | `environment-service` | `8002` | Lewat gateway |
-| Citizen Service | `citizen-service` | `8080` | Lewat gateway |
-| Python ML Service | `python-ml` | `5001` (container: `5000`) | Lewat gateway |
-| MySQL | `mysql_db` | `3306` | Internal |
-| RabbitMQ | `rabbitmq` | `5672` (AMQP), `15672` (Management UI) | Internal / debug |
-| Mosquitto (MQTT) | `mosquitto` | `1883` | IoT |
-| Node-RED | `node-red` | `1880` | IoT bridge UI |
-| Prometheus *(opsional)* | `prometheus` | `9090` | Monitoring |
-| Grafana *(opsional)* | `grafana` | `3001` (container: `3000`) | Monitoring |
+Sesuai ketentuan Kelompok 4, semua port luar (host) menggunakan konfigurasi dengan akhiran **40** (atau polanya).
 
-RabbitMQ Management UI bisa diakses di `http://localhost:15672` (login: `guest` / `guest`).
+| Service | Container Name | Port Host (Server) | Port Container | Akses Publik / internal |
+| --- | --- | --- | --- | --- |
+| API Gateway | `api-gateway` | `3040` | `3000` | Entry point utama (`http://103.147.92.135:3040`) |
+| Auth Service | `auth-service` | `3042` | `3002` | Autentikasi / OAuth 2.0 |
+| Traffic Service | `traffic-service` | `8041` | `8001` | Manajemen Lalu Lintas |
+| Environment Service | `environment-service` | `8042` | `8002` | Monitoring Lingkungan |
+| Citizen Service | `citizen-service` | `8040` | `8080` | Layanan Laporan Warga |
+| Python ML Service | `python-ml` | `5040` | `5000` | Analisis & Prediksi ML |
+| MySQL Database | `mysql_db` | `3340` | `3306` | Penyimpanan Data Terpusat |
+| RabbitMQ (AMQP) | `rabbitmq` | `5640` | `5672` | Broker data sensor / anomali |
+| RabbitMQ (UI) | `rabbitmq` | `15640` | `15672` | Management UI (`guest`/`guest`) |
+| Mosquitto (MQTT) | `mosquitto` | `1840` | `1883` | Protokol IoT Broker |
+| Node-RED | `node-red` | `1884` | `1880` | Antarmuka IoT Bridge |
+| Prometheus *(opsional)* | `prometheus` | `9040` | `9090` | Kolektor Metrik Monitoring |
+| Grafana *(opsional)* | `grafana` | `3041` | `3000` | Visualisasi Monitoring |
 
-## Database
+---
 
-- `database/schema.sql` — definisi semua tabel, otomatis di-load ke MySQL **hanya sekali**, saat volume `mysql_data` masih kosong (perilaku image resmi `mysql:8.0` untuk file di `docker-entrypoint-initdb.d/`).
-- `database/seed.sql` — data dummy untuk testing (citizens, reports, traffic_data, incidents, dst), juga di-load di kesempatan yang sama dengan schema.
-- `database/migrations/` — riwayat perubahan schema secara incremental, untuk referensi/dokumentasi (tidak di-jalankan otomatis oleh Compose).
+## Database Server
 
-> **Penting — perilaku initdb MySQL:** Karena script di `docker-entrypoint-initdb.d/` cuma jalan sekali, **mengubah `schema.sql` tidak akan berefek** ke database yang sudah pernah ke-provision. Kalau kamu ubah struktur tabel dan ingin perubahan itu ke-apply, kamu harus reset volume:
-> ```bash
-> docker compose down
-> docker volume rm smart-city-platform-kelompok4_mysql_data
-> docker compose up -d
-> ```
-> Ini akan **menghapus semua data** di MySQL (semua tabel), tidak cuma yang relevan. Backup dulu dengan `mysqldump` kalau ada data penting yang bukan dari seed.
-
-Cek isi database langsung:
+* Struktur tabel (`database/schema.sql`) dan data dummy awal (`database/seed.sql`) otomatis dimuat saat kontainer database pertama kali dibuat di server.
+* Untuk memeriksa isi tabel database secara langsung dari terminal server:
 ```bash
 docker compose exec mysql_db mysql -u root -prootpass smartcity -e "SHOW TABLES;"
-docker compose exec mysql_db mysql -u root -prootpass smartcity -e "DESCRIBE environment_data;"
+docker compose exec mysql_db mysql -u root -prootpass smartcity -e "SELECT * FROM environment_data ORDER BY id DESC LIMIT 5;"
+
 ```
 
-## Testing Manual
 
-Tiga script Python di root project mensimulasikan event sensor lewat RabbitMQ langsung (tanpa lewat HTTP/gateway), berguna buat test pipeline ML & consumer:
+
+---
+
+## Skenario Pengujian (Demo) & Endpoint API
+
+Pengujian dilakukan menggunakan Postman Collection (`docs/postman.json`) yang diarahkan ke base URL server `http://103.147.92.135:3040`. Berikut adalah detail teknis dari 6 skenario demo utama:
+
+### 3.1 Skenario 1: IoT Data Ingestion
+
+Menunjukkan alur data dari sensor menuju Environment Service melalui MQTT, Node-RED, dan API Gateway.
+
+* **Akses Antarmuka:** Buka Node-RED di browser lewat `http://103.147.92.135:1884`.
+* **Prosedur:** Lakukan *inject* data sensor pada flow "Environment IoT Bridge".
+* **Endpoint HTTP Alternatif (Gateway):**
+* **POST** `http://103.147.92.135:3040/api/environment/sensor`
+* *Headers:* `Authorization: Bearer <TOKEN>`
+* *Payload:* `{"sensor_id": "ESP32-A-01", "rainfall": 5.0, "water_level": 3.0}`
+
+
+
+### 3.2 Skenario 2: Citizen Login & Report
+
+Menunjukkan alur pembuatan akun warga, autentikasi OAuth 2.0, hingga pengiriman laporan insiden.
+
+* **1. Registrasi Akun Warga (POST):** `http://103.147.92.135:3040/auth/register`
+* *Payload:* `{"name": "Demo User", "email": "demo@test.com", "password": "password123", "role": "citizen"}`
+
+
+* **2. Login Akun (POST):** `http://103.147.92.135:3040/auth/login`
+* *Payload:* `{"email": "demo@test.com", "password": "password123"}` *(Simpan `access_token` dari response)*
+
+
+* **3. Membuat Laporan Warga (POST):** `http://103.147.92.135:3040/api/citizens/reports`
+* *Headers:* `Authorization: Bearer <TOKEN>`
+* *Payload:* `{"road_name": "Jalan MT Haryono", "category": "accident", "description": "Kecelakaan di Simpang Cawang"}`
+
+
+* **4. Melihat Laporan Saya (GET):** `http://103.147.92.135:3040/api/citizens/reports`
+
+### 3.3 Skenario 3: ML Real-time Prediction
+
+Pengujian integrasi model Machine Learning untuk prediksi performa kota pintar (Wajib menyertakan header `Authorization: Bearer <TOKEN>`):
+
+* **1. Analisis Kemacetan & Rekomendasi (POST):** `http://103.147.92.135:3040/api/ml/analyze`
+* *Payload:* `{"vehicle_count": 1200, "average_speed": 18.5, "rainfall": 35.0, "water_level": 420.0, "incident_count": 1}`
+
+
+* **2. Prediksi Volume Kendaraan (POST):** `http://103.147.92.135:3040/api/ml/predict/volume`
+* *Payload:* `{"hour": 8, "day_of_week": 1, "rainfall": 5.0, "water_level": 200.0, "incident_count": 0}`
+
+
+* **3. Prediksi Risiko Insiden (POST):** `http://103.147.92.135:3040/api/ml/predict/incident-risk`
+* *Payload:* `{"vehicle_count": 1200, "average_speed": 18.5, "rainfall": 35.0, "water_level": 420.0, "hour": 8, "day_of_week": 1}`
+
+
+
+### 3.4 Skenario 4: Docker Compose Full Stack
+
+Memastikan orkestrasi seluruh kontainer di server berjalan normal tanpa hambatan:
 
 ```bash
-pip install pika
+docker compose ps
+docker compose logs --tail=10
 
-# Simulasikan 3 event traffic dari zona berbeda
-python test_s1_traffic.py
-
-# Simulasikan event traffic ekstrem (untuk trigger anomaly detection)
-python test_s6_sensor.py
-
-# Dengarkan alert anomaly yang dipublish balik oleh python-ml-service
-python test_s6_subscriber.py
 ```
 
-Script-script ini connect ke RabbitMQ di `localhost:5672`, jadi pastikan port itu sudah ter-expose (sudah, lihat tabel port di atas) dan container `rabbitmq` berstatus healthy.
+Seluruh komponen infrastruktur kelompok harus berstatus `Up (healthy)`.
 
-Untuk testing endpoint HTTP lewat Postman, import koleksi yang sudah disediakan:
-- `docs/postman.json`
-- `docs/postman_environment_service.json`
+### 3.5 Skenario 5: Kubernetes Deployment (Opsional)
 
-## Troubleshooting
+Pemeriksaan kluster orkestrasi alternatif jika diaktifkan di server:
 
-| Simptom | Kemungkinan Penyebab | Cek |
-|---|---|---|
-| Container exited / restart loop | Cek exit code & OOM | `docker inspect <container> --format '{{json .State}}'` |
-| 502 dari gateway | Service tujuan belum healthy / nama service di `AUTH_SERVICE_URL` dkk salah | `docker compose logs <service>`, cek `express-gateway/src/config/services.js` |
-| 500 generik tanpa detail | Hampir selalu ada stack trace lengkap di log container, walau response ke client digeneralisir | `docker compose logs <service> --tail=100` |
-| Skema tabel tidak sesuai kode | Volume MySQL sudah terlanjur lama, `schema.sql` baru tidak ke-apply | Lihat bagian [Database](#database) di atas |
-| `mysqli`/extension PHP error | Extension belum di-install di Dockerfile service PHP terkait | Cek `docker-php-ext-install` di Dockerfile, lalu `docker compose build <service>` ulang |
-
-Untuk semua kasus debug PHP (Slim maupun CodeIgniter), log error lengkap biasanya tersimpan permanen dan bisa dibaca lewat:
 ```bash
-docker compose logs <service> --tail=100
-# atau, untuk CodeIgniter (file log harian)
-docker compose exec citizen-service cat /var/www/html/writable/logs/log-$(date +%Y-%m-%d).log
+kubectl get pods -n smartcity
+kubectl get svc -n smartcity
+kubectl get hpa -n smartcity
+
 ```
+
+### 3.6 Skenario 6: Anomaly Alert Flow
+
+Pengujian deteksi otomatis berbasis *event-driven* menggunakan script Python untuk memantau antrean RabbitMQ (Topic Exchange: `city.events`) di port host `5640`. Buka dua tab terminal server:
+
+* **Terminal Server 1 (Jalankan Subscriber):** `python test_s6_subscriber.py`
+* **Terminal Server 2 (Kirim Data Ekstrem):** `python test_s6_sensor.py`
+* *Ekspektasi:* Terminal 1 akan langsung menampilkan log notifikasi `"ANOMALY ALERT RECEIVED!"` secara real-time.
+
+---
+
+## Troubleshooting Server
+
+| Masalah | Kemungkinan Penyebab | Tindakan Pengecekan |
+| --- | --- | --- |
+| Response Gateway `502 Bad Gateway` | Service tujuan belum berstatus healthy atau sedang *crash loop*. | Jalankan `docker compose logs <nama-service>` untuk melihat stack trace error internal aplikasi. |
+| Perubahan skema DB tidak muncul | Volume data MySQL versi lama masih tersimpan secara permanen di server. | Reset data volume dengan: `docker compose down -v` lalu jalankan kembali `docker compose up -d`. |
+| Token JWT selalu ditolak (`401 Unauthorized`) | Nilai variabel `JWT_ACCESS_SECRET` tidak sinkron antar service di server. | Pastikan environment global di server sudah terekspor dengan benar atau periksa fallback default di file compose. |
 
 ## Struktur Folder
 
-```
+```text
 smart-city-platform-kelompok4/
 ├── docker-compose.yml
 ├── auth-service/          # OAuth 2.0 Auth Service (Node.js/Express)
@@ -228,11 +245,14 @@ smart-city-platform-kelompok4/
 ├── php-environment/       # Environment Service (PHP Slim)
 ├── php-citizen/           # Citizen Service (PHP CodeIgniter 4)
 ├── python-ml-service/     # ML Service (FastAPI)
-├── database/              # schema.sql, seed.sql, migrations/
-├── iot/                   # ESP32 firmware, Mosquitto config, Node-RED flows
-├── k8s/                   # Kubernetes manifests
-├── docs/                  # Postman collections
+├── database/              # schema.sql, seed.sql
+├── iot/                   # Mosquitto config, Node-RED flows
+├── monitoring/            # Konfigurasi Prometheus & Grafana
+├── docs/                  # Koleksi Postman & Berkas Laporan Panduan Demo
 └── test_*.py              # Script simulasi event RabbitMQ
+
 ```
 
-Untuk detail masing-masing service, lihat README di folder service terkait (`auth-service/README.md`, `express-gateway/README.md`, dst).
+```
+
+```
